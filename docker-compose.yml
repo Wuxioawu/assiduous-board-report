@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-assiduous_board_report}
+      POSTGRES_USER: ${POSTGRES_USER:-assiduous}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-assiduous}
+    # Container listens on 5432 internally; host port defaults to 5433 to avoid
+    # clashing with a locally-installed Postgres that may already own 5432.
+    # Override POSTGRES_HOST_PORT if 5433 is also taken.
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - assiduous_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-assiduous} -d ${POSTGRES_DB:-assiduous_board_report}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  assiduous_db_data:
