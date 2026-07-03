@@ -14,3 +14,17 @@ export interface FinancialStatement {
   created_at: string;
   updated_at: string;
 }
+
+export interface FinancialStatementAuditEntry {
+  id: string;
+  user_id: string | null;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  extra_data: {
+    taxonomy_code?: string;
+    previous_value?: string;
+    new_value?: string;
+  } | null;
+  created_at: string;
+}

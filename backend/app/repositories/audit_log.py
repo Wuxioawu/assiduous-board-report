@@ -1,5 +1,6 @@
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_log import AuditLog
@@ -8,6 +9,20 @@ from app.models.audit_log import AuditLog
 class AuditLogRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def list_for_resource(
+        self, *, organization_id: uuid.UUID, resource_type: str, resource_id: uuid.UUID
+    ) -> list[AuditLog]:
+        result = await self.session.execute(
+            select(AuditLog)
+            .where(
+                AuditLog.organization_id == organization_id,
+                AuditLog.resource_type == resource_type,
+                AuditLog.resource_id == resource_id,
+            )
+            .order_by(AuditLog.created_at.desc())
+        )
+        return list(result.scalars().all())
 
     async def create(
         self,

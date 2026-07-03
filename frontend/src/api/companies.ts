@@ -15,3 +15,8 @@ export async function getCompany(id: string): Promise<Company> {
   const { data } = await apiClient.get<Company>(`/companies/${id}`);
   return data;
 }
+
+export async function listCompanyPeriods(id: string): Promise<string[]> {
+  const { data } = await apiClient.get<string[]>(`/companies/${id}/periods`);
+  return data;
+}

@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
+import { listCompanyPeriods } from "@/api/companies";
 import { AppShell } from "@/components/layout/AppShell";
 import { AudienceSwitcher } from "@/components/layout/AudienceSwitcher";
 import { InsightPanel } from "@/components/insights/InsightPanel";
@@ -42,13 +44,33 @@ function parseAudience(value: string | null): Audience {
 
 export function ReportView() {
   const { companyId } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const audience = parseAudience(searchParams.get("audience"));
+
+  const [periods, setPeriods] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    listCompanyPeriods(companyId)
+      .then(setPeriods)
+      .catch(() => setPeriods([]));
+  }, [companyId]);
+
+  const requestedPeriod = searchParams.get("period");
+  const selectedPeriod =
+    requestedPeriod && periods.includes(requestedPeriod) ? requestedPeriod : periods[0];
+
+  function handlePeriodChange(period: string) {
+    const next = new URLSearchParams(searchParams);
+    next.set("period", period);
+    setSearchParams(next);
+  }
 
   const { company, metrics, history, insight, isLoading, error, regenerate } = useAudienceDashboard(
     companyId,
     audience,
     HISTORY_KEYS_BY_AUDIENCE[audience],
+    selectedPeriod,
   );
 
   const revenueSeries = buildRevenueTrendSeries(history);
@@ -62,6 +84,9 @@ export function ReportView() {
         {company ? company.name : "Loading company…"}
       </p>
       <AudienceSwitcher activeAudience={audience} />
+      {periods.length > 1 && (
+        <PeriodSelector periods={periods} selectedPeriod={selectedPeriod} onChange={handlePeriodChange} />
+      )}
 
       {isLoading && <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -99,6 +124,36 @@ export function ReportView() {
         </>
       )}
     </AppShell>
+  );
+}
+
+function PeriodSelector({
+  periods,
+  selectedPeriod,
+  onChange,
+}: {
+  periods: string[];
+  selectedPeriod?: string;
+  onChange: (period: string) => void;
+}) {
+  return (
+    <div className="mb-6 flex items-center gap-2">
+      <label htmlFor="period-select" className="text-sm font-medium text-slate-500 dark:text-slate-400">
+        Period
+      </label>
+      <select
+        id="period-select"
+        value={selectedPeriod ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-medium text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+      >
+        {periods.map((period) => (
+          <option key={period} value={period}>
+            {period}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 

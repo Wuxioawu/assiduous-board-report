@@ -21,6 +21,7 @@ export function useAudienceDashboard(
   companyId: string | undefined,
   audience: Audience,
   historyKeys: string[],
+  period?: string,
 ): UseAudienceDashboardResult {
   const [company, setCompany] = useState<Company | null>(null);
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
@@ -40,10 +41,10 @@ export function useAudienceDashboard(
       try {
         const [companyData, metricsData, historyData] = await Promise.all([
           getCompany(companyId),
-          getMetrics(companyId),
+          getMetrics(companyId, period),
           historyKeysDep ? getMetricsHistory(companyId, historyKeysDep.split(",")) : Promise.resolve(null),
         ]);
-        const insightData = await getInsight(companyId, audience).catch(() => null);
+        const insightData = await getInsight(companyId, audience, period).catch(() => null);
         if (cancelled) return;
         setCompany(companyData);
         setMetrics(metricsData);
@@ -61,13 +62,13 @@ export function useAudienceDashboard(
     return () => {
       cancelled = true;
     };
-  }, [companyId, audience, historyKeysDep]);
+  }, [companyId, audience, historyKeysDep, period]);
 
   const regenerate = useCallback(async () => {
     if (!companyId) return;
-    const updated = await regenerateInsight(companyId, audience);
+    const updated = await regenerateInsight(companyId, audience, period);
     setInsight(updated);
-  }, [companyId, audience]);
+  }, [companyId, audience, period]);
 
   return { company, metrics, history, insight, isLoading, error, regenerate };
 }
