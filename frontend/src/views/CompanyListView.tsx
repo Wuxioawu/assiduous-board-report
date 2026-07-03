@@ -84,20 +84,8 @@ export function CompanyListView() {
                 >
                   Documents
                 </Link>
-                <Link
-                  to={`/companies/${company.id}/management`}
-                  className="text-blue-600 hover:underline"
-                >
-                  Management
-                </Link>
-                <Link to={`/companies/${company.id}/board`} className="text-blue-600 hover:underline">
-                  Board
-                </Link>
-                <Link to={`/companies/${company.id}/equity`} className="text-blue-600 hover:underline">
-                  Equity
-                </Link>
-                <Link to={`/companies/${company.id}/credit`} className="text-blue-600 hover:underline">
-                  Credit
+                <Link to={`/companies/${company.id}/report`} className="text-blue-600 hover:underline">
+                  View Report
                 </Link>
               </div>
             </Card>

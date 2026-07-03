@@ -2,14 +2,11 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
-import { BoardView } from "@/views/BoardView";
 import { CompanyListView } from "@/views/CompanyListView";
 import { CompanyUploadView } from "@/views/CompanyUploadView";
-import { CreditView } from "@/views/CreditView";
-import { EquityView } from "@/views/EquityView";
 import { LoginView } from "@/views/LoginView";
-import { ManagementView } from "@/views/ManagementView";
 import { RegisterView } from "@/views/RegisterView";
+import { ReportView } from "@/views/ReportView";
 
 export function App() {
   return (
@@ -34,34 +31,10 @@ export function App() {
           }
         />
         <Route
-          path="/companies/:companyId/management"
+          path="/companies/:companyId/report"
           element={
             <ProtectedRoute>
-              <ManagementView />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/companies/:companyId/board"
-          element={
-            <ProtectedRoute>
-              <BoardView />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/companies/:companyId/equity"
-          element={
-            <ProtectedRoute>
-              <EquityView />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/companies/:companyId/credit"
-          element={
-            <ProtectedRoute>
-              <CreditView />
+              <ReportView />
             </ProtectedRoute>
           }
         />
