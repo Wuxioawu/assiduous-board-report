@@ -12,7 +12,7 @@ export function CreditView() {
       <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">Company ID: {companyId}</p>
       <Card>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          信贷方视图内容将在下一阶段实现。
+          Credit provider view content will be implemented in the next phase.
         </p>
       </Card>
     </AppLayout>

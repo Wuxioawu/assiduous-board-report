@@ -12,7 +12,7 @@ export function EquityView() {
       <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">Company ID: {companyId}</p>
       <Card>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          股权投资人视图内容将在下一阶段实现。
+          Equity investor view content will be implemented in the next phase.
         </p>
       </Card>
     </AppLayout>

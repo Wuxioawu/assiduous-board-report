@@ -44,7 +44,7 @@ export function RevenueTrendChart({
   return (
     <div className="h-80 w-full">
       <p className="mb-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
-        {companyName ?? "示例公司"} · 营收趋势
+        {companyName ?? "Sample Company"} · Revenue Trend
       </p>
       <ResponsiveContainer width="100%" height="90%">
         <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>

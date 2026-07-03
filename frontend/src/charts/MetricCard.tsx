@@ -23,7 +23,7 @@ export function MetricCard({
           className="mt-1 text-sm font-medium"
           style={{ color: isGood ? "var(--status-good)" : "var(--status-critical)" }}
         >
-          {isUp ? "▲" : "▼"} {Math.abs(deltaPct!).toFixed(1)}% 环比
+          {isUp ? "▲" : "▼"} {Math.abs(deltaPct!).toFixed(1)}% vs prior period
         </p>
       )}
     </div>

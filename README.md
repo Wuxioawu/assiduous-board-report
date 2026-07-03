@@ -1,40 +1,45 @@
 # Assiduous Board Report Platform
 
-为 Assiduous 打造的可扩展 AI-native 财务看板平台：将上传的财报文件转化为结构化数据、可视化指标与 AI 生成的洞察，服务于管理层（Management）、董事会（Board）、股权投资人（Equity）与信贷方（Credit）四类不同视角的报告需求。
+An extensible, AI-native financial board reporting platform built for Assiduous: it turns uploaded
+financial filings into structured data, visualized metrics, and AI-generated insights, serving four
+distinct reporting perspectives — Management, the Board, Equity investors, and Credit providers.
 
-本次以 **Senus PLC** 作为首个接入案例。
+**Senus PLC** is the first onboarded case study.
 
-架构与领域模型详见 [`ARCHITECTURE.md`](./ARCHITECTURE.md)；仓库约定与开发命令详见 [`CLAUDE.md`](./CLAUDE.md)。
+See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for architecture and domain model details, and
+[`CLAUDE.md`](./CLAUDE.md) for repo conventions and dev commands.
 
-## 当前阶段（Phase 1）
+## Current Stage (Phase 1)
 
-跑通多租户 + 认证 + 后端骨架 + 可视化前端骨架：
+Multi-tenancy + auth + backend skeleton + visualization frontend skeleton up and running:
 
-- 多租户数据模型（8 张核心表，行级 `organization_id` 隔离）
-- 注册 / 登录，JWT 认证
-- FastAPI 后端骨架 + Alembic 迁移
-- React + TypeScript + Vite 前端骨架，登录后展示公司列表，图表组件（假数据）验证可视化链路
+- Multi-tenant data model (8 core tables, row-level `organization_id` isolation)
+- Register / login, JWT auth
+- FastAPI backend skeleton + Alembic migrations
+- React + TypeScript + Vite frontend skeleton, showing the company list after login, chart components
+  (mock data) validating the visualization pipeline
 
-文件上传处理、LLM 抽取、真实指标计算、AI insight 生成留待下一阶段。
+File upload processing, LLM extraction, real metric calculation, and AI insight generation are left
+for the next phase.
 
-## 快速开始
+## Quick Start
 
 ```bash
-# 1. 起数据库
+# 1. Start the database
 docker compose up -d db
 
-# 2. 后端
+# 2. Backend
 cd backend
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e .
-cp .env.example .env   # 按需修改
+cp .env.example .env   # edit as needed
 alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 
-# 3. 前端（新终端）
+# 3. Frontend (new terminal)
 cd frontend
 npm install
 npm run dev
 ```
 
-前端默认运行在 http://localhost:5173 ，后端 API 在 http://localhost:8000/api/v1 。
+The frontend runs by default at http://localhost:5173, and the backend API at http://localhost:8000/api/v1.

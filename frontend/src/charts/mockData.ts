@@ -10,7 +10,7 @@ import type {
 
 export const mockRevenueTrendSeries: RevenueTrendSeries[] = [
   {
-    label: "本年营收",
+    label: "This Year Revenue",
     unit: "USD",
     points: [
       { period_start: "2025-01-01", period_end: "2025-03-31", value: 4_200_000 },
@@ -21,7 +21,7 @@ export const mockRevenueTrendSeries: RevenueTrendSeries[] = [
     ],
   },
   {
-    label: "去年同期",
+    label: "Prior Year Same Period",
     unit: "USD",
     points: [
       { period_start: "2024-01-01", period_end: "2024-03-31", value: 3_700_000 },
@@ -41,10 +41,10 @@ export const mockMarginBreakdown: MarginBreakdownEntry[] = [
 ];
 
 export const mockCashRunwaySteps: CashRunwayStep[] = [
-  { label: "期初现金", value: 3_200_000, type: "total" },
-  { label: "经营性现金流", value: 1_450_000, type: "increase" },
-  { label: "资本支出", value: -620_000, type: "decrease" },
-  { label: "融资活动", value: 800_000, type: "increase" },
-  { label: "偿还债务", value: -540_000, type: "decrease" },
-  { label: "期末现金", value: 4_290_000, type: "total" },
+  { label: "Beginning Cash", value: 3_200_000, type: "total" },
+  { label: "Operating Cash Flow", value: 1_450_000, type: "increase" },
+  { label: "Capital Expenditure", value: -620_000, type: "decrease" },
+  { label: "Financing Activities", value: 800_000, type: "increase" },
+  { label: "Debt Repayment", value: -540_000, type: "decrease" },
+  { label: "Ending Cash", value: 4_290_000, type: "total" },
 ];

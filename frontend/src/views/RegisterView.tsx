@@ -23,7 +23,7 @@ export function RegisterView() {
       await register({ organization_name: organizationName, full_name: fullName, email, password });
       navigate("/companies");
     } catch {
-      setError("注册失败，请检查信息或换一个邮箱");
+      setError("Registration failed, please check your information or try a different email");
     } finally {
       setIsSubmitting(false);
     }
@@ -32,25 +32,25 @@ export function RegisterView() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--page-plane)] px-4">
       <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <h1 className="mb-1 text-xl font-semibold text-slate-900 dark:text-white">注册</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">创建你的组织账号</p>
+        <h1 className="mb-1 text-xl font-semibold text-slate-900 dark:text-white">Register</h1>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">Create your organization account</p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Input
-            label="组织名称"
+            label="Organization Name"
             name="organizationName"
             value={organizationName}
             onChange={(e) => setOrganizationName(e.target.value)}
             required
           />
           <Input
-            label="姓名"
+            label="Full Name"
             name="fullName"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             required
           />
           <Input
-            label="邮箱"
+            label="Email"
             type="email"
             name="email"
             value={email}
@@ -58,7 +58,7 @@ export function RegisterView() {
             required
           />
           <Input
-            label="密码"
+            label="Password"
             type="password"
             name="password"
             minLength={8}
@@ -68,13 +68,13 @@ export function RegisterView() {
           />
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Button type="submit" disabled={isSubmitting} className="mt-2 w-full">
-            {isSubmitting ? "注册中…" : "注册"}
+            {isSubmitting ? "Registering…" : "Register"}
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
-          已有账号？{" "}
+          Already have an account?{" "}
           <Link to="/login" className="font-medium text-blue-600 hover:underline">
-            登录
+            Log In
           </Link>
         </p>
       </div>

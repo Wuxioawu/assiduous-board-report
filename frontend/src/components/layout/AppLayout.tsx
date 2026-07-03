@@ -21,7 +21,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </span>
             )}
             <Button variant="secondary" onClick={logout}>
-              退出登录
+              Log Out
             </Button>
           </div>
         </div>

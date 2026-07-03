@@ -19,7 +19,7 @@ export function MarginBreakdownChart({
   return (
     <div className="h-80 w-full">
       <p className="mb-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
-        {companyName ?? "示例公司"} · 利润率拆解
+        {companyName ?? "Sample Company"} · Margin Breakdown
       </p>
       <ResponsiveContainer width="100%" height="90%">
         <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barGap={4}>
@@ -47,11 +47,11 @@ export function MarginBreakdownChart({
           <Legend wrapperStyle={{ fontSize: 12, color: "var(--text-secondary)" }} />
           <Bar
             dataKey="grossMarginPct"
-            name="毛利率"
+            name="Gross Margin"
             fill="var(--series-1)"
             radius={[4, 4, 0, 0]}
           />
-          <Bar dataKey="netMarginPct" name="净利率" fill="var(--series-2)" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="netMarginPct" name="Net Margin" fill="var(--series-2)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

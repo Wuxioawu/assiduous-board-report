@@ -18,7 +18,7 @@ export function CompanyListView() {
   useEffect(() => {
     listCompanies()
       .then(setCompanies)
-      .catch(() => setError("加载公司列表失败"))
+      .catch(() => setError("Failed to load company list"))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -31,15 +31,15 @@ export function CompanyListView() {
       setNewCompanyName("");
       setIsFormOpen(false);
     } catch {
-      setError("创建公司失败");
+      setError("Failed to create company");
     }
   }
 
   return (
     <AppLayout>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">公司列表</h1>
-        <Button onClick={() => setIsFormOpen((v) => !v)}>添加公司</Button>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Companies</h1>
+        <Button onClick={() => setIsFormOpen((v) => !v)}>Add Company</Button>
       </div>
 
       {isFormOpen && (
@@ -47,15 +47,15 @@ export function CompanyListView() {
           <form onSubmit={handleCreate} className="flex items-end gap-3">
             <div className="flex-1">
               <Input
-                label="公司名称"
+                label="Company Name"
                 name="companyName"
                 value={newCompanyName}
                 onChange={(e) => setNewCompanyName(e.target.value)}
-                placeholder="例如 Senus PLC"
+                placeholder="e.g. Senus PLC"
                 required
               />
             </div>
-            <Button type="submit">保存</Button>
+            <Button type="submit">Save</Button>
           </form>
         </Card>
       )}
@@ -63,11 +63,11 @@ export function CompanyListView() {
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       {isLoading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">加载中…</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       ) : companies.length === 0 ? (
         <Card>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            还没有添加任何公司，点击右上角「添加公司」开始。
+            No companies added yet. Click "Add Company" in the top right to get started.
           </p>
         </Card>
       ) : (
@@ -75,7 +75,7 @@ export function CompanyListView() {
           {companies.map((company) => (
             <Card key={company.id} title={company.name}>
               <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
-                {company.industry ?? "未设置行业"} · {company.currency}
+                {company.industry ?? "Industry not set"} · {company.currency}
               </p>
               <div className="flex flex-wrap gap-2 text-sm">
                 <Link

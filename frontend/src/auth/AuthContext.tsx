@@ -18,7 +18,7 @@ export const AuthContext = createContext<AuthContextValue | undefined>(undefined
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   // JWT lives only in memory (component state) - never localStorage/sessionStorage,
-  // so a page refresh requires signing in again. See CLAUDE.md "开发约定".
+  // so a page refresh requires signing in again. See CLAUDE.md "Dev Conventions".
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
 

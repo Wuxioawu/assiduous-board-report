@@ -17,13 +17,13 @@ export function ManagementView() {
     <AppLayout>
       <h1 className="mb-1 text-2xl font-semibold text-slate-900 dark:text-white">Management View</h1>
       <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
-        Company ID: {companyId} · 图表当前展示占位数据
+        Company ID: {companyId} · Charts currently show placeholder data
       </p>
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <MetricCard label="本季度营收" value="5.1M" unit="USD" deltaPct={-5.7} />
-        <MetricCard label="毛利率" value="60.4" unit="%" deltaPct={2.6} />
-        <MetricCard label="现金余额" value="4.29M" unit="USD" deltaPct={34.1} />
+        <MetricCard label="Quarterly Revenue" value="5.1M" unit="USD" deltaPct={-5.7} />
+        <MetricCard label="Gross Margin" value="60.4" unit="%" deltaPct={2.6} />
+        <MetricCard label="Cash Balance" value="4.29M" unit="USD" deltaPct={34.1} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

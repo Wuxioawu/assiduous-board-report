@@ -66,7 +66,7 @@ export function CashRunwayChart({
   return (
     <div className="w-full">
       <p className="mb-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
-        {companyName ?? "示例公司"} · 现金流桥接
+        {companyName ?? "Sample Company"} · Cash Flow Bridge
       </p>
       <Plot
         data={data}

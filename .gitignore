@@ -40,3 +40,8 @@ Thumbs.db
 
 # --- docker ---
 *.pid
+
+# the md document
+CLAUDE.md
+ARCHITECTURE.md
+CONTRIBUTING.md
