@@ -4,6 +4,7 @@ import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { BoardView } from "@/views/BoardView";
 import { CompanyListView } from "@/views/CompanyListView";
+import { CompanyUploadView } from "@/views/CompanyUploadView";
 import { CreditView } from "@/views/CreditView";
 import { EquityView } from "@/views/EquityView";
 import { LoginView } from "@/views/LoginView";
@@ -21,6 +22,14 @@ export function App() {
           element={
             <ProtectedRoute>
               <CompanyListView />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/companies/:companyId/documents"
+          element={
+            <ProtectedRoute>
+              <CompanyUploadView />
             </ProtectedRoute>
           }
         />

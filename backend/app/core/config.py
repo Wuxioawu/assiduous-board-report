@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    storage_dir: str = "storage"
+
     @property
     def database_url(self) -> str:
         return (

@@ -9,9 +9,9 @@ class UserRole(str, enum.Enum):
 
 
 class DocumentStatus(str, enum.Enum):
-    UPLOADED = "uploaded"
+    PENDING = "pending"
     PROCESSING = "processing"
-    PROCESSED = "processed"
+    EXTRACTED = "extracted"
     FAILED = "failed"
 
 

@@ -16,6 +16,12 @@ class CompanyRepository:
         )
         return list(result.scalars().all())
 
+    async def get_by_id(self, company_id: uuid.UUID, *, organization_id: uuid.UUID) -> Company | None:
+        result = await self.session.execute(
+            select(Company).where(Company.id == company_id, Company.organization_id == organization_id)
+        )
+        return result.scalar_one_or_none()
+
     async def create(
         self,
         *,

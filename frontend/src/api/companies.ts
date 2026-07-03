@@ -10,3 +10,8 @@ export async function createCompany(payload: CompanyCreatePayload): Promise<Comp
   const { data } = await apiClient.post<Company>("/companies", payload);
   return data;
 }
+
+export async function getCompany(id: string): Promise<Company> {
+  const { data } = await apiClient.get<Company>(`/companies/${id}`);
+  return data;
+}

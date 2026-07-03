@@ -27,7 +27,7 @@ class Document(UUIDPKMixin, TimestampMixin, Base):
     status: Mapped[DocumentStatus] = mapped_column(
         Enum(DocumentStatus, name="document_status"),
         nullable=False,
-        default=DocumentStatus.UPLOADED,
+        default=DocumentStatus.PENDING,
     )
     period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
     period_end: Mapped[date | None] = mapped_column(Date, nullable=True)

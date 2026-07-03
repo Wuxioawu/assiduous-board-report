@@ -16,6 +16,7 @@ dist/
 htmlcov/
 .env
 backend/.env
+backend/storage/
 
 # --- Node / Vite / frontend ---
 node_modules/

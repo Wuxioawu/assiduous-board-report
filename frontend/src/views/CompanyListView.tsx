@@ -79,6 +79,12 @@ export function CompanyListView() {
               </p>
               <div className="flex flex-wrap gap-2 text-sm">
                 <Link
+                  to={`/companies/${company.id}/documents`}
+                  className="text-blue-600 hover:underline"
+                >
+                  Documents
+                </Link>
+                <Link
                   to={`/companies/${company.id}/management`}
                   className="text-blue-600 hover:underline"
                 >
