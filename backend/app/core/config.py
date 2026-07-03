@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     storage_dir: str = "storage"
 
+    anthropic_api_key: str | None = None
+    extraction_model: str = "claude-opus-4-8"
+
     @property
     def database_url(self) -> str:
         return (

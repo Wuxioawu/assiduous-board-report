@@ -43,3 +43,29 @@ class DocumentRepository:
         self.session.add(document)
         await self.session.flush()
         return document
+
+    async def get_by_id(
+        self, document_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> Document | None:
+        result = await self.session.execute(
+            select(Document).where(
+                Document.id == document_id, Document.organization_id == organization_id
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def update_status(
+        self,
+        document_id: uuid.UUID,
+        *,
+        organization_id: uuid.UUID,
+        status: DocumentStatus,
+        error_message: str | None = None,
+    ) -> Document | None:
+        document = await self.get_by_id(document_id, organization_id=organization_id)
+        if document is None:
+            return None
+        document.status = status
+        document.error_message = error_message
+        await self.session.flush()
+        return document

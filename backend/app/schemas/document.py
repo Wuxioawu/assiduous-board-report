@@ -16,4 +16,5 @@ class DocumentRead(BaseModel):
     status: DocumentStatus
     period_start: date | None
     period_end: date | None
+    error_message: str | None
     created_at: datetime

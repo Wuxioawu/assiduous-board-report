@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 
 import { getCompany } from "@/api/companies";
 import { listDocuments, uploadDocument } from "@/api/documents";
+import { listFinancialStatements, updateFinancialStatement } from "@/api/financialStatements";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import type { Company } from "@/types/company";
 import type { CompanyDocument, DocumentStatus } from "@/types/document";
+import type { FinancialStatement } from "@/types/financialStatement";
 
 const STATUS_STYLES: Record<DocumentStatus, string> = {
   pending: "text-slate-600 dark:text-slate-300",
@@ -23,25 +25,47 @@ const STATUS_LABELS: Record<DocumentStatus, string> = {
   failed: "Failed",
 };
 
+const IN_PROGRESS_STATUSES: DocumentStatus[] = ["pending", "processing"];
+
 export function CompanyUploadView() {
   const { companyId } = useParams<{ companyId: string }>();
   const [company, setCompany] = useState<Company | null>(null);
   const [documents, setDocuments] = useState<CompanyDocument[]>([]);
+  const [statements, setStatements] = useState<FinancialStatement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const refresh = useCallback(async () => {
+    if (!companyId) return;
+    const [documentsData, statementsData] = await Promise.all([
+      listDocuments(companyId),
+      listFinancialStatements(companyId),
+    ]);
+    setDocuments(documentsData);
+    setStatements(statementsData);
+  }, [companyId]);
 
   useEffect(() => {
     if (!companyId) return;
-    Promise.all([getCompany(companyId), listDocuments(companyId)])
-      .then(([companyData, documentsData]) => {
-        setCompany(companyData);
-        setDocuments(documentsData);
-      })
-      .catch(() => setError("Failed to load company or documents"))
+    getCompany(companyId)
+      .then(setCompany)
+      .catch(() => setError("Failed to load company"));
+    refresh()
+      .catch(() => setError("Failed to load documents or financial statements"))
       .finally(() => setIsLoading(false));
-  }, [companyId]);
+  }, [companyId, refresh]);
+
+  useEffect(() => {
+    if (!documents.some((doc) => IN_PROGRESS_STATUSES.includes(doc.status))) return;
+    const interval = setInterval(() => {
+      refresh().catch(() => undefined);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [documents, refresh]);
 
   async function handleUpload(event: FormEvent) {
     event.preventDefault();
@@ -62,6 +86,26 @@ export function CompanyUploadView() {
       setError("Upload failed. Only PDF files are supported.");
     } finally {
       setIsUploading(false);
+    }
+  }
+
+  function startEdit(statement: FinancialStatement) {
+    setEditingId(statement.id);
+    setEditValue(String(statement.value));
+  }
+
+  async function saveEdit(statementId: string) {
+    const parsed = Number(editValue);
+    if (Number.isNaN(parsed)) {
+      setError("Enter a valid number");
+      return;
+    }
+    try {
+      const updated = await updateFinancialStatement(statementId, parsed);
+      setStatements((prev) => prev.map((s) => (s.id === statementId ? updated : s)));
+      setEditingId(null);
+    } catch {
+      setError("Failed to save the corrected value");
     }
   }
 
@@ -102,7 +146,7 @@ export function CompanyUploadView() {
           </p>
         </Card>
       ) : (
-        <Card>
+        <Card className="mb-6">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="text-slate-500 dark:text-slate-400">
@@ -117,9 +161,97 @@ export function CompanyUploadView() {
                   <td className="py-2 text-slate-900 dark:text-white">{doc.filename}</td>
                   <td className={`py-2 font-medium ${STATUS_STYLES[doc.status]}`}>
                     {STATUS_LABELS[doc.status]}
+                    {doc.status === "failed" && doc.error_message && (
+                      <span
+                        className="ml-2 cursor-help text-xs font-normal text-slate-400"
+                        title={doc.error_message}
+                      >
+                        (why?)
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 text-slate-500 dark:text-slate-400">
                     {new Date(doc.created_at).toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {statements.length > 0 && (
+        <Card title="Extracted Financial Data">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="text-slate-500 dark:text-slate-400">
+                <th className="pb-2 font-medium">Taxonomy Code</th>
+                <th className="pb-2 font-medium">Value</th>
+                <th className="pb-2 font-medium">Currency</th>
+                <th className="pb-2 font-medium">Period</th>
+                <th className="pb-2 font-medium">Confidence</th>
+                <th className="pb-2 font-medium">Source</th>
+                <th className="pb-2 font-medium"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {statements.map((statement) => (
+                <tr key={statement.id} className="border-t border-slate-100 dark:border-slate-800">
+                  <td className="py-2 font-mono text-xs text-slate-900 dark:text-white">
+                    {statement.taxonomy_code}
+                  </td>
+                  <td className="py-2 text-slate-900 dark:text-white">
+                    {editingId === statement.id ? (
+                      <input
+                        type="number"
+                        className="w-32 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        autoFocus
+                      />
+                    ) : (
+                      statement.value.toLocaleString()
+                    )}
+                  </td>
+                  <td className="py-2 text-slate-500 dark:text-slate-400">{statement.currency}</td>
+                  <td className="py-2 text-slate-500 dark:text-slate-400">
+                    {statement.period_start} → {statement.period_end}
+                  </td>
+                  <td className="py-2 text-slate-500 dark:text-slate-400">
+                    {statement.confidence_score != null
+                      ? `${Math.round(statement.confidence_score * 100)}%`
+                      : "—"}
+                  </td>
+                  <td className="py-2 text-slate-500 dark:text-slate-400">
+                    {statement.source_excerpt ? (
+                      <span
+                        className="cursor-help underline decoration-dotted"
+                        title={`${statement.source_excerpt}${
+                          statement.source_page ? ` (page ${statement.source_page})` : ""
+                        }`}
+                      >
+                        excerpt
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                    {statement.extracted_by === "manual_override" && (
+                      <span className="ml-2 text-xs text-[var(--status-warning)]">edited</span>
+                    )}
+                  </td>
+                  <td className="py-2 text-right">
+                    {editingId === statement.id ? (
+                      <div className="flex justify-end gap-2">
+                        <Button variant="secondary" onClick={() => setEditingId(null)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={() => saveEdit(statement.id)}>Save</Button>
+                      </div>
+                    ) : (
+                      <Button variant="secondary" onClick={() => startEdit(statement)}>
+                        Edit
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}

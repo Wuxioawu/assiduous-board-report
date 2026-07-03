@@ -8,5 +8,6 @@ export interface CompanyDocument {
   status: DocumentStatus;
   period_start: string | null;
   period_end: string | null;
+  error_message: string | null;
   created_at: string;
 }

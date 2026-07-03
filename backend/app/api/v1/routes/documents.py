@@ -1,7 +1,7 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import TenantContext, get_tenant_context
@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.repositories.company import CompanyRepository
 from app.repositories.document import DocumentRepository
 from app.schemas.document import DocumentRead
+from app.services.extraction.pipeline import run_extraction
 from app.services.storage import StorageService, get_storage_service
 
 router = APIRouter(prefix="/companies/{company_id}/documents", tags=["documents"])
@@ -38,6 +39,7 @@ async def list_documents(
 async def upload_document(
     company_id: uuid.UUID,
     file: UploadFile,
+    background_tasks: BackgroundTasks,
     tenant: TenantContext = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
@@ -61,4 +63,13 @@ async def upload_document(
         storage_path=storage_path,
     )
     await db.commit()
+
+    background_tasks.add_task(
+        run_extraction,
+        document_id=document.id,
+        organization_id=tenant.org_id,
+        company_id=company_id,
+        storage_path=storage_path,
+    )
+
     return DocumentRead.model_validate(document)

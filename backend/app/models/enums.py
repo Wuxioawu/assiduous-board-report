@@ -15,12 +15,6 @@ class DocumentStatus(str, enum.Enum):
     FAILED = "failed"
 
 
-class StatementType(str, enum.Enum):
-    INCOME_STATEMENT = "income_statement"
-    BALANCE_SHEET = "balance_sheet"
-    CASH_FLOW = "cash_flow"
-
-
 class InsightSeverity(str, enum.Enum):
     INFO = "info"
     WARNING = "warning"
