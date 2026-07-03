@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import { getCompany } from "@/api/companies";
 import { listDocuments, uploadDocument } from "@/api/documents";
 import { listFinancialStatements, updateFinancialStatement } from "@/api/financialStatements";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import type { Company } from "@/types/company";
@@ -110,7 +110,7 @@ export function CompanyUploadView() {
   }
 
   return (
-    <AppLayout>
+    <AppShell>
       <h1 className="mb-1 text-2xl font-semibold text-slate-900 dark:text-white">
         Documents{company ? ` · ${company.name}` : ""}
       </h1>
@@ -259,6 +259,6 @@ export function CompanyUploadView() {
           </table>
         </Card>
       )}
-    </AppLayout>
+    </AppShell>
   );
 }

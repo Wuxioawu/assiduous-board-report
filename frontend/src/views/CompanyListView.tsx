@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { createCompany, listCompanies } from "@/api/companies";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -36,7 +36,7 @@ export function CompanyListView() {
   }
 
   return (
-    <AppLayout>
+    <AppShell>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Companies</h1>
         <Button onClick={() => setIsFormOpen((v) => !v)}>Add Company</Button>
@@ -92,6 +92,6 @@ export function CompanyListView() {
           ))}
         </div>
       )}
-    </AppLayout>
+    </AppShell>
   );
 }

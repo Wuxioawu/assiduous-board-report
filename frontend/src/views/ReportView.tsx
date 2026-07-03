@@ -1,6 +1,6 @@
 import { useParams, useSearchParams } from "react-router-dom";
 
-import { AppLayout } from "@/components/layout/AppLayout";
+import { AppShell } from "@/components/layout/AppShell";
 import { AudienceSwitcher } from "@/components/layout/AudienceSwitcher";
 import { InsightPanel } from "@/components/insights/InsightPanel";
 import { Card } from "@/components/ui/Card";
@@ -56,7 +56,7 @@ export function ReportView() {
   const bridgeSteps = buildEbitdaToFcfBridge(metrics);
 
   return (
-    <AppLayout>
+    <AppShell>
       <h1 className="mb-1 text-2xl font-semibold text-slate-900 dark:text-white">{AUDIENCE_TITLES[audience]}</h1>
       <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
         {company ? company.name : "Loading company…"}
@@ -98,7 +98,7 @@ export function ReportView() {
           <InsightPanel insight={insight} onRegenerate={regenerate} />
         </>
       )}
-    </AppLayout>
+    </AppShell>
   );
 }
 
