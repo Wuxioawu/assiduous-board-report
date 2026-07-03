@@ -1,8 +1,38 @@
 /**
- * Shapes mirror the future `metric` table / API response
- * (see ARCHITECTURE.md §2.6) so chart props won't need to change once
- * real data replaces the current placeholder/mock data.
+ * Chart-prop shapes mirror the `metric` table / API response (see
+ * ARCHITECTURE.md §2.6). The `MetricValue*` / `Metric*Response` types below
+ * are the raw GET .../metrics and .../metrics/history response shapes;
+ * adapters in `@/lib/dashboardData` map them onto the chart-prop shapes.
  */
+
+export interface MetricValue {
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+}
+
+export interface MetricsResponse {
+  company_id: string;
+  period_start: string | null;
+  period_end: string | null;
+  growth: MetricValue[];
+  profitability: MetricValue[];
+  cash: MetricValue[];
+  solvency: MetricValue[];
+  returns: MetricValue[];
+}
+
+export interface MetricHistoryPoint {
+  period_start: string;
+  period_end: string;
+  value: number;
+}
+
+export interface MetricHistoryResponse {
+  company_id: string;
+  series: Record<string, MetricHistoryPoint[]>;
+}
 
 export interface MetricPoint {
   period_start: string; // ISO date

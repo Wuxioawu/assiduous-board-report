@@ -19,3 +19,10 @@ class InsightSeverity(str, enum.Enum):
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
+
+
+class Audience(str, enum.Enum):
+    MANAGEMENT = "management"
+    BOARD = "board"
+    EQUITY = "equity"
+    CREDIT = "credit"

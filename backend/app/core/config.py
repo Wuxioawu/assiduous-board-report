@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str | None = None
     extraction_model: str = "claude-opus-4-8"
+    insight_model: str = "claude-opus-4-8"
 
     @property
     def database_url(self) -> str:

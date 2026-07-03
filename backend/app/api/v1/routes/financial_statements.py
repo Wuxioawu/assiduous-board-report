@@ -8,7 +8,9 @@ from app.db.session import get_db
 from app.repositories.audit_log import AuditLogRepository
 from app.repositories.company import CompanyRepository
 from app.repositories.financial_statement import FinancialStatementRepository
+from app.repositories.insight import InsightRepository
 from app.schemas.financial_statement import FinancialStatementRead, FinancialStatementUpdate
+from app.services.metrics.orchestrator import compute_and_store_metrics
 
 router = APIRouter(tags=["financial-statements"])
 
@@ -60,4 +62,21 @@ async def update_financial_statement(
     )
     await db.commit()
     await db.refresh(statement)
+
+    await compute_and_store_metrics(
+        db,
+        organization_id=tenant.org_id,
+        company_id=statement.company_id,
+        period_end=statement.period_end,
+    )
+
+    # Invalidate cached narratives for this period across all audiences so the
+    # next GET regenerates them against the corrected underlying data.
+    await InsightRepository(db).delete_for_period_audience(
+        company_id=statement.company_id,
+        organization_id=tenant.org_id,
+        period_end=statement.period_end,
+    )
+    await db.commit()
+
     return FinancialStatementRead.model_validate(statement)

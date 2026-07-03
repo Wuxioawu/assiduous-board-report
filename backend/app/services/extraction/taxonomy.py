@@ -43,8 +43,18 @@ _ENTRIES = [
     TaxonomyEntry("TOTAL_DEBT", "Total Debt", TaxonomyCategory.BALANCE_SHEET, ExpectedUnit.CURRENCY),
     TaxonomyEntry("TOTAL_ASSETS", "Total Assets", TaxonomyCategory.BALANCE_SHEET, ExpectedUnit.CURRENCY),
     TaxonomyEntry("TOTAL_EQUITY", "Total Equity", TaxonomyCategory.BALANCE_SHEET, ExpectedUnit.CURRENCY),
+    TaxonomyEntry("CURRENT_ASSETS", "Current Assets", TaxonomyCategory.BALANCE_SHEET, ExpectedUnit.CURRENCY),
+    TaxonomyEntry(
+        "CURRENT_LIABILITIES", "Current Liabilities", TaxonomyCategory.BALANCE_SHEET, ExpectedUnit.CURRENCY
+    ),
     TaxonomyEntry(
         "CAPITAL_EXPENDITURE", "Capital Expenditure", TaxonomyCategory.CASH_FLOW, ExpectedUnit.CURRENCY
+    ),
+    TaxonomyEntry(
+        "DEBT_SERVICE",
+        "Debt Service (interest + principal due in the period)",
+        TaxonomyCategory.CASH_FLOW,
+        ExpectedUnit.CURRENCY,
     ),
     TaxonomyEntry("CUSTOMER_COUNT", "Customer Count", TaxonomyCategory.OPERATIONAL, ExpectedUnit.COUNT),
 ]

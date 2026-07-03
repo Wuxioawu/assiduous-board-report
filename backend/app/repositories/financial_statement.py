@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.financial_statement import FinancialStatement
@@ -21,6 +21,31 @@ class FinancialStatementRepository:
                 FinancialStatement.organization_id == organization_id,
             )
             .order_by(FinancialStatement.period_end.desc(), FinancialStatement.taxonomy_code)
+        )
+        return list(result.scalars().all())
+
+    async def get_latest_period_end(
+        self, *, company_id: uuid.UUID, organization_id: uuid.UUID
+    ) -> date | None:
+        result = await self.session.execute(
+            select(func.max(FinancialStatement.period_end)).where(
+                FinancialStatement.company_id == company_id,
+                FinancialStatement.organization_id == organization_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def list_period_ends(
+        self, *, company_id: uuid.UUID, organization_id: uuid.UUID
+    ) -> list[date]:
+        result = await self.session.execute(
+            select(FinancialStatement.period_end)
+            .where(
+                FinancialStatement.company_id == company_id,
+                FinancialStatement.organization_id == organization_id,
+            )
+            .distinct()
+            .order_by(FinancialStatement.period_end)
         )
         return list(result.scalars().all())
 

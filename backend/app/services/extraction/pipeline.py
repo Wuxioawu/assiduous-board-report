@@ -7,6 +7,7 @@ from app.repositories.document import DocumentRepository
 from app.repositories.financial_statement import FinancialStatementRepository
 from app.services.extraction.llm_extractor import extract_financial_data
 from app.services.extraction.pdf_parser import parse_pdf
+from app.services.metrics.orchestrator import compute_and_store_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ async def run_extraction(
             line_items = await extract_financial_data(pages)
 
             fs_repo = FinancialStatementRepository(db)
+            periods_seen: set = set()
             for item in line_items:
                 await fs_repo.create(
                     organization_id=organization_id,
@@ -48,11 +50,17 @@ async def run_extraction(
                     source_page=item.source_page,
                     extracted_by="ai",
                 )
+                periods_seen.add(item.period_end)
 
             await doc_repo.update_status(
                 document_id, organization_id=organization_id, status=DocumentStatus.EXTRACTED
             )
             await db.commit()
+
+            for period_end in periods_seen:
+                await compute_and_store_metrics(
+                    db, organization_id=organization_id, company_id=company_id, period_end=period_end
+                )
         except Exception as exc:  # noqa: BLE001 - extraction failures must never crash the background task
             logger.exception("Extraction failed for document %s", document_id)
             await db.rollback()
