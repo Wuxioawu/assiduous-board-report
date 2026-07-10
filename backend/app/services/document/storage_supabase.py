@@ -71,11 +71,17 @@ class StorageSupabase(StorageService):
         bucket = client.storage.from_(self._bucket)
         try:
             await bucket.upload(key, content, {"content-type": content_type})
+            # get_public_url() is a coroutine on the async client too (despite its
+            # -> str return annotation describing the awaited value, not the call
+            # itself) - a bare `bucket.get_public_url(key)` here returns an
+            # un-awaited coroutine object instead of the URL string, which then
+            # blows up wherever the caller treats storage_path as a str (e.g.
+            # Path(storage_path) in routes/auth.py's upload_avatar).
+            return await bucket.get_public_url(key)
         except StorageException as exc:
             raise StorageSupabaseError(
                 f"Failed to upload {key!r} to Supabase bucket {self._bucket!r}: {exc}"
             ) from exc
-        return bucket.get_public_url(key)
 
     async def save(self, *, organization_id: uuid.UUID, company_id: uuid.UUID, file: UploadFile) -> str:
         suffix = Path(file.filename or "").suffix

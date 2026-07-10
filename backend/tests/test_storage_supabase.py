@@ -1,3 +1,4 @@
+import inspect
 import io
 import uuid
 from unittest.mock import AsyncMock, MagicMock
@@ -18,7 +19,12 @@ class _FakeBucketProxy:
         self.upload = AsyncMock(return_value=None)
         self.download = AsyncMock(return_value=b"downloaded-bytes")
         self.remove = AsyncMock(return_value=[{"name": "deleted"}])
-        self.get_public_url = MagicMock(side_effect=lambda key: PUBLIC_URL_PREFIX + key)
+        # get_public_url is a coroutine on the real async client (verified via
+        # inspect.iscoroutinefunction against the installed storage3 package,
+        # not just its -> str return annotation) - a plain MagicMock here would
+        # let a missing `await` in the implementation pass silently, which is
+        # exactly how that bug shipped the first time.
+        self.get_public_url = AsyncMock(side_effect=lambda key: PUBLIC_URL_PREFIX + key)
 
 
 class _FakeStorageNamespace:
@@ -74,6 +80,26 @@ class TestSave:
         assert content == b"pdf-bytes"
         assert options == {"content-type": "application/pdf"}
         assert result == PUBLIC_URL_PREFIX + key
+
+    async def test_returns_the_awaited_url_string_not_a_coroutine(self, monkeypatch):
+        # Regression test for a shipped bug: _upload() returned
+        # `bucket.get_public_url(key)` without awaiting it - get_public_url is a
+        # coroutine on the real async client, so this returned an un-awaited
+        # coroutine object instead of the URL string, which blew up downstream
+        # wherever the caller treated storage_path as a str (e.g. Path(storage_path)
+        # in routes/auth.py's upload_avatar). Asserted explicitly here, in addition
+        # to the plain equality checks above, so a future regression fails loudly
+        # with an obvious message instead of an unrelated TypeError three layers away.
+        service, _ = _service(monkeypatch)
+
+        result = await service.save(
+            organization_id=uuid.uuid4(),
+            company_id=uuid.uuid4(),
+            file=UploadFile(file=io.BytesIO(b"x"), filename="a.pdf"),
+        )
+
+        assert isinstance(result, str)
+        assert not inspect.iscoroutine(result)
 
 
 class TestSaveBytes:
