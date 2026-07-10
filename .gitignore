@@ -1,0 +1,49 @@
+# --- Python / backend ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.env
+backend/.env
+backend/storage/
+
+# --- Node / Vite / frontend ---
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.local
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+
+# --- data ingestion (raw files may be large / sensitive) ---
+data-ingestion/raw/*
+!data-ingestion/raw/.gitkeep
+
+# --- editors / OS ---
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+
+# --- docker ---
+*.pid
+.env
+.env.*
+backend/.env dev

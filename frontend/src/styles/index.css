@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Assiduous brand tokens (light theme only - matches the assiduous.tech marketing
+   site). Reference these vars / the matching Tailwind color tokens (see
+   tailwind.config.js) everywhere rather than hardcoding hex or slate-* grays, so the
+   palette stays a single source of truth. There is deliberately no dark-mode media
+   query anymore - this is a full theme flip, not a light/dark toggle. */
+:root {
+  --page-plane: #faf7f2; /* warm cream page background */
+  --surface-1: #ffffff; /* card/surface background */
+  --surface-border: #e5e1da; /* soft card border */
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+  --text-primary: #1b1d24; /* near-black (exact brand wordmark color) - headlines, primary body text */
+  --text-secondary: #4b5563; /* medium-dark gray - secondary labels */
+  --text-muted: #6b7280; /* medium gray - muted/help text */
+
+  /* Low-opacity near-black rather than a flat gray hex, so gridlines stay soft/receded
+     regardless of what they sit on top of. */
+  --gridline: rgba(27, 29, 36, 0.08);
+  --axis: #9ca3af;
+  --border: rgba(27, 29, 36, 0.12);
+
+  --accent-coral: #eb3446; /* exact brand red (logo mark) - primary CTA fill, links */
+  --accent-coral-hover: #c82c3c;
+  --accent-navy: #1b1d24; /* near-black (not actually navy blue) - secondary/outline button border+text */
+  --accent-navy-hover: #2a2d36;
+  /* Deliberately a different, more saturated red than --accent-coral so destructive
+     actions (Delete) never visually compete with primary CTAs. */
+  --destructive: #b91c1c;
+  --destructive-hover: #991b1b;
+
+  /* Primary/secondary series intentionally echo the brand (coral + a complementary
+     teal) rather than arbitrary chart-library defaults; 3-6 are a supporting
+     categorical palette for charts with more series than that. */
+  --series-1: #eb3446; /* coral (brand) */
+  --series-2: #0d9488; /* teal */
+  --series-3: #eda100; /* yellow */
+  --series-4: #008300; /* green */
+  --series-5: #4a3aa7; /* violet */
+  --series-6: #2a78d6; /* blue */
+
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-critical: #d03b3b;
+}
+
+body {
+  background-color: var(--page-plane);
+  color: var(--text-primary);
+}

@@ -1,0 +1,288 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ company_name }} - Board Report</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2.2cm 1.8cm;
+
+    @bottom-center {
+      content: "Financial data extracted via AI with human review; see platform for full audit trail.";
+      font-size: 8px;
+      color: #6b7280;
+    }
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 8px;
+      color: #6b7280;
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: #1f2937;
+    font-size: 11px;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .brand {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: #94a3b8;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  /* Cover page */
+  .cover {
+    padding-top: 40px;
+  }
+
+  .cover h1 {
+    font-size: 26px;
+    margin: 0 0 6px 0;
+    color: #0f172a;
+  }
+
+  .cover .subtitle {
+    font-size: 13px;
+    color: #475569;
+    margin-bottom: 26px;
+  }
+
+  .cover .meta-row {
+    display: flex;
+    gap: 48px;
+    margin-bottom: 30px;
+  }
+
+  .cover .meta-row .meta-label {
+    font-size: 10px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+
+  .cover .meta-row .meta-value {
+    display: block;
+    font-size: 13px;
+    color: #0f172a;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .cover .meta-row .meta-value .meta-subtext {
+    font-size: 11px;
+    font-weight: 400;
+    color: #94a3b8;
+  }
+
+  .cover .toc {
+    border-top: 2px solid #1e3a8a;
+    padding-top: 14px;
+  }
+
+  .cover .toc h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #1e3a8a;
+    margin: 0 0 10px 0;
+  }
+
+  .cover .toc ol {
+    margin: 0;
+    padding-left: 18px;
+    color: #334155;
+  }
+
+  .cover .toc li {
+    margin-bottom: 4px;
+  }
+
+  /* Section pages */
+  section.report-section {
+    page-break-before: always;
+  }
+
+  section.report-section > .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid #1e3a8a;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+  }
+
+  section.report-section > .section-header h2 {
+    font-size: 18px;
+    margin: 0;
+    color: #0f172a;
+  }
+
+  section.report-section > .section-header .company-tag {
+    font-size: 10px;
+    color: #94a3b8;
+  }
+
+  .metric-group {
+    margin-bottom: 18px;
+  }
+
+  .metric-group h3 {
+    font-size: 13px;
+    color: #1e3a8a;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+  }
+
+  table.metric-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  table.metric-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  table.metric-table td.label {
+    color: #475569;
+  }
+
+  table.metric-table td.value {
+    text-align: right;
+    font-weight: 600;
+    color: #0f172a;
+    width: 35%;
+  }
+
+  table.metric-table .variance {
+    margin-top: 2px;
+    font-size: 9px;
+    font-weight: 500;
+  }
+
+  p.no-data {
+    color: #94a3b8;
+    font-style: italic;
+  }
+
+  .insight {
+    margin-top: 24px;
+    padding: 14px 16px;
+    border-left: 3px solid #1e3a8a;
+    background: #f8fafc;
+  }
+
+  .insight.severity-warning {
+    border-left-color: #d97706;
+  }
+
+  .insight.severity-critical {
+    border-left-color: #dc2626;
+  }
+
+  .insight h3 {
+    font-size: 13px;
+    margin: 0 0 6px 0;
+    color: #0f172a;
+  }
+
+  .insight p {
+    margin: 0 0 8px 0;
+    color: #334155;
+  }
+
+  .insight p:last-child {
+    margin-bottom: 0;
+  }
+</style>
+</head>
+<body>
+  <div class="cover">
+    <div class="brand">Assiduous Board Report Platform</div>
+    <h1>{{ company_name }}</h1>
+    <div class="subtitle">Consolidated Board Report</div>
+
+    <div class="meta-row">
+      <div>
+        <div class="meta-label">Reporting Period</div>
+        <div class="meta-value">
+          {% if fiscal_label %}
+            {{ fiscal_label }}
+            <span class="meta-subtext">
+              ({% if period_start %}{{ period_start.strftime('%d %b %Y') }} &ndash; {% endif %}{{ period_end.strftime('%d %b %Y') }})
+            </span>
+          {% else %}
+            {% if period_start %}{{ period_start.strftime('%d %b %Y') }} &ndash; {% endif %}{{ period_end.strftime('%d %b %Y') }}
+          {% endif %}
+        </div>
+      </div>
+      <div>
+        <div class="meta-label">Generated</div>
+        <div class="meta-value">{{ generated_at.strftime('%d %b %Y %H:%M') }} UTC</div>
+      </div>
+    </div>
+
+    <div class="toc">
+      <h2>Included Sections</h2>
+      <ol>
+        {% for name in section_names %}
+        <li>{{ name }}</li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+
+  {% for section in sections %}
+  <section class="report-section">
+    <div class="section-header">
+      <h2>{{ section.section_title }}</h2>
+      <div class="company-tag">{{ company_name }}</div>
+    </div>
+
+    {% for group in section.metric_groups %}
+    <div class="metric-group">
+      <h3>{{ group.label }}</h3>
+      <table class="metric-table">
+        {% for row in group.rows %}
+        <tr>
+          <td class="label">{{ row.label }}</td>
+          <td class="value">
+            {{ row.value }}
+            {% if row.variance %}
+            <div class="variance" style="color: {{ row.variance.color }};">
+              Budget: {{ row.variance.budget_value }} | {{ row.variance.variance_text }}
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}
+    <p class="no-data">No metrics available for this period.</p>
+    {% endfor %}
+
+    {% if section.insight %}
+    <div class="insight severity-{{ section.insight.severity.value }}">
+      <h3>{{ section.insight_title }}</h3>
+      {% for paragraph in section.insight_paragraphs %}
+      <p>{{ paragraph }}</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+  {% endfor %}
+</body>
+</html>
