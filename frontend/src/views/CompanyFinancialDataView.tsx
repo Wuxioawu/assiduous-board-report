@@ -159,12 +159,18 @@ export function CompanyFinancialDataView() {
   }, [statements, periodFilter, sourceFilter, debouncedSearch]);
 
   const selectedAddPeriod = periods.find((p) => periodKeyOf(p) === addPeriodKey);
-  const codesPresentForAddPeriod = new Set(
-    statements.filter((s) => periodKeyOf(s) === addPeriodKey).map((s) => s.taxonomy_code),
-  );
-  const availableTaxonomyEntries = TAXONOMY_ENTRIES.filter(
-    (entry) => entry.code === addTaxonomyCode || !codesPresentForAddPeriod.has(entry.code),
-  );
+  // Memoized so typing in the Add-Line-Item form's Value/Note fields (state
+  // that lives in this same component) doesn't recompute this on every
+  // keystroke - only when the period, the taxonomy list, or the selected
+  // code actually change.
+  const availableTaxonomyEntries = useMemo(() => {
+    const codesPresentForAddPeriod = new Set(
+      statements.filter((s) => periodKeyOf(s) === addPeriodKey).map((s) => s.taxonomy_code),
+    );
+    return TAXONOMY_ENTRIES.filter(
+      (entry) => entry.code === addTaxonomyCode || !codesPresentForAddPeriod.has(entry.code),
+    );
+  }, [statements, addPeriodKey, addTaxonomyCode]);
 
   function openAddModal(prefill?: { taxonomyCode?: string; periodKey?: string }) {
     setAddError(null);

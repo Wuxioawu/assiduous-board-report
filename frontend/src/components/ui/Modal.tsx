@@ -28,8 +28,20 @@ export function Modal({ title, children, onClose, footer }: ModalProps) {
     // Focus the first real control (e.g. Cancel) when present, since that's
     // almost always a safe, non-destructive default across this app's modals -
     // falls back to the panel itself for content with no focusable children.
+    // Mount-only ([]): callers (e.g. AddLineItemModal) pass onClose as an
+    // inline arrow function, so a new reference lands on every parent
+    // re-render (every keystroke in a form field). That used to be this
+    // effect's dependency, so it re-ran - and re-stole focus back to the
+    // first focusable element in the panel - on every keystroke rather than
+    // just once when the modal opens.
     const firstFocusable = panel.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
     (firstFocusable ?? panel).focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
