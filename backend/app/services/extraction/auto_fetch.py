@@ -116,6 +116,20 @@ def _is_financial_filing(*, label: str, title: str) -> bool:
     return True
 
 
+# Serializes every Playwright browser launch app-wide (a manual "Check Now"
+# click and the periodic scheduler both go through _check_company_for_new_documents)
+# so overlapping triggers queue for the same Chromium process instead of each
+# spawning their own - Chromium is heavy enough that a handful of concurrent
+# instances can exhaust container memory.
+_browser_lock = asyncio.Lock()
+
+# Launch flags trade off rendering fidelity we don't need (this is a headless
+# scrape, never shown to a user) for a materially smaller Chromium memory
+# footprint - important in a constrained container where auto-fetch runs
+# alongside the rest of the app.
+_BROWSER_LAUNCH_ARGS = ["--disable-gpu", "--disable-dev-shm-usage", "--no-sandbox", "--single-process"]
+
+
 @dataclass
 class _CardInfo:
     section_id: str
@@ -297,8 +311,8 @@ async def _check_company_for_new_documents(
     missing_download_titles: list[str] = []
     skipped_non_financial: list[str] = []
 
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch()
+    async with _browser_lock, async_playwright() as playwright:
+        browser = await playwright.chromium.launch(args=_BROWSER_LAUNCH_ARGS)
         try:
             page = await (await browser.new_context(accept_downloads=True)).new_page()
             try:
