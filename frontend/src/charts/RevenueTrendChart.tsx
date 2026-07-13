@@ -1,4 +1,6 @@
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Legend,
   Line,
@@ -10,15 +12,12 @@ import {
 } from "recharts";
 
 import { mockRevenueTrendSeries } from "@/charts/mockData";
+import { shouldRenderAsBarChart } from "@/lib/chartFormat";
 import { formatCurrency } from "@/lib/formatCurrency";
+import { formatPeriodLabel } from "@/lib/periods";
 import type { RevenueTrendChartProps } from "@/types/metrics";
 
 const SERIES_COLORS = ["var(--series-1)", "var(--series-2)", "var(--series-3)"];
-
-function formatPeriod(periodEnd: string): string {
-  const date = new Date(periodEnd);
-  return `${date.getFullYear()} Q${Math.floor(date.getMonth() / 3) + 1}`;
-}
 
 type RevenueTrendChartRenderProps = Partial<Omit<RevenueTrendChartProps, "currency">> &
   Pick<RevenueTrendChartProps, "currency">;
@@ -28,7 +27,7 @@ export function RevenueTrendChart({
   series = mockRevenueTrendSeries,
   currency,
 }: RevenueTrendChartRenderProps) {
-  const periods = series[0]?.points.map((p) => formatPeriod(p.period_end)) ?? [];
+  const periods = series[0]?.points.map((p) => formatPeriodLabel(p)) ?? [];
   const rows = periods.map((period, i) => {
     const row: Record<string, string | number> = { period };
     series.forEach((s) => {
@@ -36,6 +35,11 @@ export function RevenueTrendChart({
     });
     return row;
   });
+  // See shouldRenderAsBarChart - fewer than 3 points reads as a single
+  // change, not a trend, so it renders as a plain bar comparison instead of
+  // a line (mirrors GET .../charts's own server-side degradation rule).
+  const asBarChart = shouldRenderAsBarChart(periods.length);
+  const Chart = asBarChart ? BarChart : LineChart;
 
   return (
     <div className="h-80 w-full">
@@ -43,9 +47,21 @@ export function RevenueTrendChart({
         {companyName ?? "Sample Company"} · Revenue Trend
       </p>
       <ResponsiveContainer width="100%" height="90%">
-        <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+        <Chart data={rows} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--gridline)" vertical={false} />
-          <XAxis dataKey="period" stroke="var(--axis)" tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
+          {/* interval={0}: period labels are now full fiscal labels (e.g.
+           * "HY2026 (6M to Dec 2025)"), much longer than the old bare
+           * "2025 Q4" - Recharts' default tick-skipping to avoid overlap
+           * would otherwise silently drop a tick's text on a chart with only
+           * a handful of points, which reads as a missing data point rather
+           * than a rendering choice. Showing every tick and letting long
+           * labels wrap/truncate visually is preferable to hiding one. */}
+          <XAxis
+            dataKey="period"
+            stroke="var(--axis)"
+            tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+            interval={0}
+          />
           <YAxis
             stroke="var(--axis)"
             tick={{ fill: "var(--text-muted)", fontSize: 12 }}
@@ -64,18 +80,22 @@ export function RevenueTrendChart({
             }}
           />
           <Legend wrapperStyle={{ fontSize: 12, color: "var(--text-secondary)" }} />
-          {series.map((s, i) => (
-            <Line
-              key={s.label}
-              type="monotone"
-              dataKey={s.label}
-              stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-              strokeWidth={2}
-              dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
-            />
-          ))}
-        </LineChart>
+          {series.map((s, i) =>
+            asBarChart ? (
+              <Bar key={s.label} dataKey={s.label} fill={SERIES_COLORS[i % SERIES_COLORS.length]} radius={[4, 4, 0, 0]} />
+            ) : (
+              <Line
+                key={s.label}
+                type="monotone"
+                dataKey={s.label}
+                stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+            ),
+          )}
+        </Chart>
       </ResponsiveContainer>
     </div>
   );

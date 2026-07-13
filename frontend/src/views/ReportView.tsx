@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { FileDown } from "lucide-react";
 import { useParams, useSearchParams } from "react-router-dom";
 
+import { getCharts } from "@/api/charts";
 import { getCompanyPeriods } from "@/api/companies";
 import { AppShell } from "@/components/layout/AppShell";
 import { AudienceSwitcher } from "@/components/layout/AudienceSwitcher";
 import { ExportModal } from "@/components/export/ExportModal";
 import { InsightPanel } from "@/components/insights/InsightPanel";
 import { PeriodSelector } from "@/components/report/PeriodSelector";
+import { PeriodTypeToggle } from "@/components/report/PeriodTypeToggle";
 import { FailedDocumentsNotice, NoDataYet, ProcessingStatus } from "@/components/report/ReportStatusPanels";
 import {
   BoardSection,
@@ -21,12 +23,27 @@ import { Spinner } from "@/components/ui/Spinner";
 import { useAudienceDashboard } from "@/hooks/useAudienceDashboard";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocumentStatus } from "@/hooks/useDocumentStatus";
-import { buildEbitdaToFcfBridge, buildMarginBreakdown, buildRevenueTrendSeries } from "@/lib/dashboardData";
+import {
+  buildCashFlowBridgeSteps,
+  buildMarginBreakdown,
+  buildRevenueTrendSeries,
+  findRevenueCardSourceRefs,
+  mostRecentPeriodType,
+  periodTypesPresent,
+} from "@/lib/dashboardData";
 import { formatPeriodDateRange } from "@/lib/periods";
+import type { ChartConfig } from "@/types/chart";
 import type { CompanyPeriod } from "@/types/company";
 import type { Audience } from "@/types/insight";
+import type { PeriodType } from "@/types/metrics";
 
 const VALID_AUDIENCES: Audience[] = ["management", "board", "equity", "credit"];
+
+// revenue_card/revenue_trend/margin_breakdown/cash_flow_bridge already render
+// via dedicated props (revenueSourceRefs/revenueSeries/marginData/bridgeSteps,
+// built from /metrics/history and the unfiltered charts fetch) - excluded
+// here so AudienceChartsSection doesn't duplicate them on the page.
+const CHARTS_RENDERED_ELSEWHERE = new Set(["revenue_card", "revenue_trend", "margin_breakdown", "cash_flow_bridge"]);
 
 const AUDIENCE_TITLES: Record<Audience, string> = {
   management: "Management View",
@@ -52,6 +69,15 @@ export function ReportView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const audience = parseAudience(searchParams.get("audience"));
   const [periods, setPeriods] = useState<CompanyPeriod[]>([]);
+  // User's explicit choice on the period-type toggle; null means "no explicit
+  // choice yet, use the most-recent-period_type default" (see
+  // dashboardData.mostRecentPeriodType). Reset on company change so a choice
+  // made for one company (e.g. HY) doesn't silently carry over and hide data
+  // for the next company viewed, which might only ever report FY.
+  const [periodTypeOverride, setPeriodTypeOverride] = useState<PeriodType | null>(null);
+  useEffect(() => {
+    setPeriodTypeOverride(null);
+  }, [companyId]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -65,6 +91,26 @@ export function ReportView() {
       cancelled = true;
     };
   }, [companyId]);
+
+  // Deterministic chart configs (Cash Flow Bridge, Revenue card provenance) -
+  // computed server-side ONLY from CONFIRMED statements (see GET .../charts),
+  // never from LLM-generated chart data. Re-fetched whenever the dashboard
+  // itself refetches (isRefreshing below) so a newly-extracted/corrected
+  // document's bridge shows up without a manual page reload.
+  const [charts, setCharts] = useState<ChartConfig[] | null>(null);
+  const [chartsRefreshKey, setChartsRefreshKey] = useState(0);
+  useEffect(() => {
+    if (!companyId) return;
+    let cancelled = false;
+    getCharts(companyId)
+      .then((data) => {
+        if (!cancelled) setCharts(data);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, chartsRefreshKey]);
 
   const requestedPeriod = searchParams.get("period");
   const selectedPeriod =
@@ -107,14 +153,21 @@ export function ReportView() {
   useEffect(() => {
     if (wasProcessingRef.current && !isProcessing) {
       refetch();
+      setChartsRefreshKey((k) => k + 1);
     }
     wasProcessingRef.current = isProcessing;
   }, [isProcessing, refetch]);
 
   const currency = metrics?.currency ?? company?.currency ?? "USD";
-  const revenueSeries = buildRevenueTrendSeries(history);
-  const marginData = buildMarginBreakdown(history);
-  const bridgeSteps = buildEbitdaToFcfBridge(metrics);
+  const availablePeriodTypes = periodTypesPresent(history, "revenue");
+  const activePeriodType = periodTypeOverride ?? mostRecentPeriodType(history, "revenue");
+  const revenueSeries = buildRevenueTrendSeries(history, activePeriodType);
+  const marginData = buildMarginBreakdown(history, activePeriodType);
+  const bridgeSteps = buildCashFlowBridgeSteps(charts);
+  const revenueSourceRefs = findRevenueCardSourceRefs(charts);
+  const audienceCharts = (charts ?? []).filter(
+    (c) => c.audiences.includes(audience) && !CHARTS_RENDERED_ELSEWHERE.has(c.id),
+  );
 
   const hasNoDocuments = documentsLoaded && documents.length === 0;
   // isLoading (first load for this company) blanks the page; isRefreshing (an
@@ -139,6 +192,13 @@ export function ReportView() {
       <div className="mb-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-navy">{AUDIENCE_TITLES[audience]}</h1>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {reportState === "ready" && (
+            <PeriodTypeToggle
+              available={availablePeriodTypes}
+              selected={activePeriodType}
+              onChange={setPeriodTypeOverride}
+            />
+          )}
           {periods.length > 0 && (
             <PeriodSelector periods={periods} selected={selectedPeriod} onChange={handlePeriodChange} />
           )}
@@ -209,6 +269,8 @@ export function ReportView() {
               revenueSeries={revenueSeries}
               marginData={marginData}
               bridgeSteps={bridgeSteps}
+              revenueSourceRefs={revenueSourceRefs}
+              audienceCharts={audienceCharts}
             />
           )}
           {audience === "board" && (
@@ -219,6 +281,7 @@ export function ReportView() {
               currency={currency}
               revenueSeries={revenueSeries}
               marginData={marginData}
+              audienceCharts={audienceCharts}
             />
           )}
           {audience === "equity" && (
@@ -229,6 +292,7 @@ export function ReportView() {
               currency={currency}
               revenueSeries={revenueSeries}
               marginData={marginData}
+              audienceCharts={audienceCharts}
             />
           )}
           {audience === "credit" && (
@@ -238,10 +302,14 @@ export function ReportView() {
               companyId={companyId}
               currency={currency}
               bridgeSteps={bridgeSteps}
+              audienceCharts={audienceCharts}
             />
           )}
 
-          <BudgetVarianceSection metrics={metrics} currency={currency} />
+          {/* Management-only per audience differentiation (see AudienceSections.tsx) -
+              "budget vs actual" is explicitly a Management-tab chart, not shared
+              across all four audiences the way it used to render. */}
+          {audience === "management" && <BudgetVarianceSection metrics={metrics} currency={currency} />}
 
           {companyId && (
             <InsightPanel

@@ -1,12 +1,15 @@
 import { formatCurrency } from "@/lib/formatCurrency";
+import { formatPeriodLabel, periodKeyOf } from "@/lib/periods";
+import type { ChartConfig, SourceRef } from "@/types/chart";
 import type {
   BenchmarkComparison,
   BudgetComparison,
   CashRunwayStep,
   MarginBreakdownEntry,
+  MetricHistoryPoint,
   MetricHistoryResponse,
-  MetricsResponse,
   MetricValue,
+  PeriodType,
   RevenueTrendSeries,
 } from "@/types/metrics";
 
@@ -48,7 +51,7 @@ export function buildBenchmarkComparison(metric: MetricValue | undefined): Bench
 }
 
 export function formatMetricValue(metric: MetricValue | undefined, currency: string): string {
-  if (!metric || metric.value == null) return "—";
+  if (!metric || metric.value == null) return metric?.not_meaningful ? "n/m" : "—";
   switch (metric.unit) {
     case "currency":
       return formatCurrency(metric.value, currency);
@@ -112,48 +115,91 @@ export function metricUnitLabel(metric: MetricValue | undefined): string | undef
   }
 }
 
-function formatPeriodLabel(periodEnd: string): string {
-  const d = new Date(periodEnd);
-  return `FY${d.getFullYear()}`;
+/** The period_type of a series' most recent point (by period_end), used as
+ * the Revenue Trend/Margin Breakdown period-type filter's default (see
+ * ReportView) - showing whatever the company most recently reported, rather
+ * than an arbitrary fixed type that might not exist for this company at all. */
+export function mostRecentPeriodType(history: MetricHistoryResponse | null, key: string): PeriodType | null {
+  const points = history?.series[key] ?? [];
+  if (points.length === 0) return null;
+  return points.reduce((latest, p) => (p.period_end > latest.period_end ? p : latest)).period_type;
 }
 
-export function buildRevenueTrendSeries(history: MetricHistoryResponse | null): RevenueTrendSeries[] {
-  const points = history?.series.revenue ?? [];
+/** Every distinct period_type present across a series - used to decide whether
+ * ReportView's period-type toggle needs to be shown at all (a company that has
+ * only ever reported one period_type has nothing to switch between). */
+export function periodTypesPresent(history: MetricHistoryResponse | null, key: string): PeriodType[] {
+  const points = history?.series[key] ?? [];
+  return [...new Set(points.map((p) => p.period_type))];
+}
+
+function byPeriodType(points: MetricHistoryPoint[], periodType: PeriodType | null): MetricHistoryPoint[] {
+  return periodType == null ? points : points.filter((p) => p.period_type === periodType);
+}
+
+/** periodType=null plots every period_type in the series together - callers
+ * (ReportView) should always pass a specific type in practice, since mixing
+ * types on one trend line plots a full-year figure next to a half-year one as
+ * if they were comparable. See mostRecentPeriodType for a sensible default. */
+export function buildRevenueTrendSeries(
+  history: MetricHistoryResponse | null,
+  periodType: PeriodType | null,
+): RevenueTrendSeries[] {
+  const points = byPeriodType(history?.series.revenue ?? [], periodType);
   if (points.length === 0) return [];
-  return [
-    {
-      label: "Revenue",
-      points: points.map((p) => ({
-        period_start: p.period_start,
-        period_end: p.period_end,
-        value: p.value,
-      })),
-    },
-  ];
+  return [{ label: "Revenue", points }];
 }
 
-export function buildMarginBreakdown(history: MetricHistoryResponse | null): MarginBreakdownEntry[] {
-  const gross = history?.series.gross_margin ?? [];
-  const net = history?.series.net_margin ?? [];
+export function buildMarginBreakdown(
+  history: MetricHistoryResponse | null,
+  periodType: PeriodType | null,
+): MarginBreakdownEntry[] {
+  const gross = byPeriodType(history?.series.gross_margin ?? [], periodType);
+  // Joined by period key (not array index) so a gap in one series - or the
+  // periodType filter above removing different points from each - can never
+  // pair a gross-margin point with the wrong period's net-margin value.
+  const netByPeriod = new Map((history?.series.net_margin ?? []).map((p) => [periodKeyOf(p), p]));
   if (gross.length === 0) return [];
-  return gross.map((g, i) => ({
-    period_label: formatPeriodLabel(g.period_end),
+  return gross.map((g) => ({
+    period_label: formatPeriodLabel(g),
     grossMarginPct: g.value,
-    netMarginPct: net[i]?.value ?? 0,
+    netMarginPct: netByPeriod.get(periodKeyOf(g))?.value ?? 0,
   }));
 }
 
-/** EBITDA -> Free Cash Flow bridge for the current period, built from the
- * taxonomy fields we actually extract (EBITDA, CapEx, FCF) rather than
- * fabricating a beginning/ending cash waterfall we have no data for. */
-export function buildEbitdaToFcfBridge(metrics: MetricsResponse | null): CashRunwayStep[] {
-  const ebitda = findMetric(metrics?.profitability, "ebitda");
-  const capex = findMetric(metrics?.cash, "capital_expenditure");
-  const fcf = findMetric(metrics?.cash, "free_cash_flow");
-  if (ebitda?.value == null || capex?.value == null || fcf?.value == null) return [];
-  return [
-    { label: "EBITDA", value: ebitda.value, type: "total" },
-    { label: "Capital Expenditure", value: -Math.abs(capex.value), type: "decrease" },
-    { label: "Free Cash Flow", value: fcf.value, type: "total" },
-  ];
+export function findChart(charts: ChartConfig[] | null, id: string): ChartConfig | undefined {
+  return charts?.find((c) => c.id === id);
+}
+
+/** True five-step cash flow waterfall (Opening -> Operating -> Investing ->
+ * Financing -> Closing), computed server-side from the company's own
+ * confirmed CASH_OPENING/NET_OPERATING_CASH_FLOW/NET_INVESTING_CASH_FLOW/
+ * NET_FINANCING_CASH_FLOW/CASH_CLOSING statements (see GET .../charts and
+ * services/charts/registry.build_cash_flow_bridge) - replaces the old
+ * EBITDA->CapEx->FCF approximation, which wasn't a real cash bridge and had
+ * no way to show provenance for its numbers. Empty when the company's most
+ * recent period doesn't have all five fields confirmed (see the backend
+ * builder's docstring for why a partial bridge isn't shown at all). */
+export function buildCashFlowBridgeSteps(charts: ChartConfig[] | null): CashRunwayStep[] {
+  const chart = findChart(charts, "cash_flow_bridge");
+  const points = chart?.series[0]?.points ?? [];
+  return points.map((p, i) => {
+    const isEndpoint = i === 0 || i === points.length - 1;
+    return {
+      label: p.step_label ?? "",
+      value: p.value,
+      type: isEndpoint ? "total" : p.value >= 0 ? "increase" : "decrease",
+    };
+  });
+}
+
+/** Source excerpt(s) backing the Revenue metric card's current value, for the
+ * click-to-reveal-provenance affordance on MetricCard (see
+ * charts/MetricCard.tsx's sourceRefs prop) - reads the "revenue_card" chart's
+ * single point rather than duplicating the lookup logic that
+ * services/charts/registry.build_revenue_card already does server-side. */
+export function findRevenueCardSourceRefs(charts: ChartConfig[] | null): SourceRef[] | undefined {
+  const chart = findChart(charts, "revenue_card");
+  const refs = chart?.series[0]?.points[0]?.source_refs;
+  return refs && refs.length > 0 ? refs : undefined;
 }

@@ -5,6 +5,8 @@
  * adapters in `@/lib/dashboardData` map them onto the chart-prop shapes.
  */
 
+import type { SourceRef } from "@/types/chart";
+
 export interface MetricValue {
   key: string;
   label: string;
@@ -20,6 +22,12 @@ export interface MetricValue {
   // period to compare against). Used to deep-link to a pre-filled "Add Missing Line
   // Item" form (see dashboardData.buildAddMissingLineItemHref).
   missing_taxonomy_codes?: string[] | null;
+  // True for a ratio whose inputs are all present but the result isn't
+  // meaningful to show as a plain number (e.g. DSCR/leverage divided by a
+  // negative EBITDA) - render "n/m" instead of "—", with `reason` still
+  // driving the explanatory tooltip. Distinct from value==null (missing
+  // data) - here the data is present, the ratio just isn't meaningful.
+  not_meaningful?: boolean;
   unit: string;
   // Non-null only when a budget entry exists for this metric's period (see
   // BudgetSettingsView / api/budgets.ts). The backend (Pydantic) always sends
@@ -49,9 +57,29 @@ export interface MetricsResponse {
   returns: MetricValue[];
 }
 
-export interface MetricHistoryPoint {
-  period_start: string;
+/** What a single point/statement actually covers - see backend
+ * app.models.enums.PeriodType. A trend line must never mix points of
+ * different period_types as if they were comparable (a half-year figure next
+ * to a full-year one) - see ReportView's period-type filter/toggle. */
+export type PeriodType = "FY" | "HY" | "Q";
+
+/** Fields needed to build a fiscal-year-aware period label (see
+ * lib/periods.formatPeriodLabel) - shared by every point/entry type below so
+ * one formatter works for all of them instead of each chart building its own
+ * string. fiscal_year/fiscal_quarter are computed server-side (see backend
+ * api/v1/routes/metrics.py) since they require the company's
+ * fiscal_year_start_month, which these point-level types don't otherwise
+ * carry. */
+export interface PeriodLabelFields {
   period_end: string;
+  period_type: PeriodType;
+  fiscal_year: number;
+  /** Only meaningful when period_type is "Q" - the 1-4 quarter index. */
+  fiscal_quarter?: number | null;
+}
+
+export interface MetricHistoryPoint extends PeriodLabelFields {
+  period_start: string;
   value: number;
 }
 
@@ -60,9 +88,8 @@ export interface MetricHistoryResponse {
   series: Record<string, MetricHistoryPoint[]>;
 }
 
-export interface MetricPoint {
+export interface MetricPoint extends PeriodLabelFields {
   period_start: string; // ISO date
-  period_end: string; // ISO date
   value: number;
 }
 
@@ -112,6 +139,11 @@ export interface MetricCardProps {
    * Renders a small hover/tap affordance next to the value; omitted when the
    * metric has a real value. */
   reason?: string;
+  /** True for MetricValue.not_meaningful (e.g. DSCR/leverage over a
+   * negative EBITDA) - renders the value as "n/m" (see
+   * dashboardData.formatMetricValue) instead of "—", and changes the hint
+   * popover's wording/links since the data isn't actually missing. */
+  notMeaningful?: boolean;
   /** Link to the company's Documents page, shown alongside `reason` since
    * the fix for missing data is almost always "go add the missing line
    * item there". Used as a fallback when `addMissingHref` isn't available. */
@@ -121,6 +153,14 @@ export interface MetricCardProps {
    * dashboardData.buildAddMissingLineItemHref). Takes precedence over
    * `documentsHref` when both are present. */
   addMissingHref?: string;
+  /** Source document excerpt(s) this value was extracted from (see
+   * GET .../charts, lib/dashboardData.findRevenueCardSourceRefs) - renders a
+   * click/hover affordance revealing them. Only ever shown when `reason` is
+   * absent (a missing value has nothing to source). */
+  sourceRefs?: SourceRef[];
+  /** Free-text caption below the card (e.g. a ChartConfig.annotation like
+   * "Target: EBITDA breakeven by FY2028" - see GET .../charts). */
+  note?: string;
 }
 
 export interface BudgetComparison {

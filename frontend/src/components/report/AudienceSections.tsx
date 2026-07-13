@@ -1,4 +1,5 @@
 import { MetricCard } from "@/charts/MetricCard";
+import { AudienceChartsSection } from "@/components/report/AudienceChartsSection";
 import { BridgeCard, TrendCard } from "@/components/report/ReportChartCards";
 import {
   buildAddMissingLineItemHref,
@@ -9,6 +10,7 @@ import {
   metricMissingReason,
   metricUnitLabel,
 } from "@/lib/dashboardData";
+import type { ChartConfig, SourceRef } from "@/types/chart";
 import type { CashRunwayStep, MarginBreakdownEntry, MetricsResponse, RevenueTrendSeries } from "@/types/metrics";
 
 const BUDGET_COMPARABLE_METRICS: { key: string; label: string; category: "growth" | "profitability" }[] = [
@@ -58,6 +60,8 @@ export function ManagementSection({
   revenueSeries,
   marginData,
   bridgeSteps,
+  revenueSourceRefs,
+  audienceCharts,
 }: {
   metrics: MetricsResponse | null;
   companyName?: string;
@@ -66,6 +70,8 @@ export function ManagementSection({
   revenueSeries: RevenueTrendSeries[];
   marginData: MarginBreakdownEntry[];
   bridgeSteps: CashRunwayStep[];
+  revenueSourceRefs?: SourceRef[];
+  audienceCharts: ChartConfig[];
 }) {
   const documentsHref = companyId ? `/companies/${companyId}/documents/financial-data` : undefined;
   const revenue = findMetric(metrics?.growth, "revenue");
@@ -84,6 +90,7 @@ export function ManagementSection({
           reason={metricMissingReason(revenue)}
           documentsHref={documentsHref}
           addMissingHref={buildAddMissingLineItemHref(companyId, revenue, metrics?.period_start, metrics?.period_end)}
+          sourceRefs={revenueSourceRefs}
         />
         <MetricCard
           label="Gross Margin"
@@ -107,6 +114,7 @@ export function ManagementSection({
       <div className="mb-8">
         <BridgeCard companyName={companyName} currency={currency} bridgeSteps={bridgeSteps} />
       </div>
+      <AudienceChartsSection charts={audienceCharts} currency={currency} />
     </>
   );
 }
@@ -118,6 +126,7 @@ export function BoardSection({
   currency,
   revenueSeries,
   marginData,
+  audienceCharts,
 }: {
   metrics: MetricsResponse | null;
   companyName?: string;
@@ -125,6 +134,7 @@ export function BoardSection({
   currency: string;
   revenueSeries: RevenueTrendSeries[];
   marginData: MarginBreakdownEntry[];
+  audienceCharts: ChartConfig[];
 }) {
   const documentsHref = companyId ? `/companies/${companyId}/documents/financial-data` : undefined;
   const revenueGrowth = findMetric(metrics?.growth, "revenue_yoy_growth");
@@ -159,6 +169,7 @@ export function BoardSection({
           deltaDirectionGoodWhenUp={true}
           benchmark={buildBenchmarkComparison(dscr)}
           reason={metricMissingReason(dscr)}
+          notMeaningful={dscr?.not_meaningful}
           documentsHref={documentsHref}
           addMissingHref={buildAddMissingLineItemHref(companyId, dscr, metrics?.period_start, metrics?.period_end)}
         />
@@ -169,11 +180,13 @@ export function BoardSection({
           deltaDirectionGoodWhenUp={false}
           benchmark={buildBenchmarkComparison(leverage)}
           reason={metricMissingReason(leverage)}
+          notMeaningful={leverage?.not_meaningful}
           documentsHref={documentsHref}
           addMissingHref={buildAddMissingLineItemHref(companyId, leverage, metrics?.period_start, metrics?.period_end)}
         />
       </div>
       <TrendCard companyName={companyName} currency={currency} revenueSeries={revenueSeries} marginData={marginData} />
+      <AudienceChartsSection charts={audienceCharts} currency={currency} />
     </>
   );
 }
@@ -185,6 +198,7 @@ export function EquitySection({
   currency,
   revenueSeries,
   marginData,
+  audienceCharts,
 }: {
   metrics: MetricsResponse | null;
   companyName?: string;
@@ -192,6 +206,7 @@ export function EquitySection({
   currency: string;
   revenueSeries: RevenueTrendSeries[];
   marginData: MarginBreakdownEntry[];
+  audienceCharts: ChartConfig[];
 }) {
   const documentsHref = companyId ? `/companies/${companyId}/documents/financial-data` : undefined;
   const revenueGrowth = findMetric(metrics?.growth, "revenue_yoy_growth");
@@ -230,6 +245,7 @@ export function EquitySection({
         />
       </div>
       <TrendCard companyName={companyName} currency={currency} revenueSeries={revenueSeries} marginData={marginData} />
+      <AudienceChartsSection charts={audienceCharts} currency={currency} />
     </>
   );
 }
@@ -240,12 +256,14 @@ export function CreditSection({
   companyId,
   currency,
   bridgeSteps,
+  audienceCharts,
 }: {
   metrics: MetricsResponse | null;
   companyName?: string;
   companyId?: string;
   currency: string;
   bridgeSteps: CashRunwayStep[];
+  audienceCharts: ChartConfig[];
 }) {
   const documentsHref = companyId ? `/companies/${companyId}/documents/financial-data` : undefined;
   const dscr = findMetric(metrics?.solvency, "dscr");
@@ -263,6 +281,7 @@ export function CreditSection({
           deltaDirectionGoodWhenUp={true}
           benchmark={buildBenchmarkComparison(dscr)}
           reason={metricMissingReason(dscr)}
+          notMeaningful={dscr?.not_meaningful}
           documentsHref={documentsHref}
           addMissingHref={buildAddMissingLineItemHref(companyId, dscr, metrics?.period_start, metrics?.period_end)}
         />
@@ -273,6 +292,7 @@ export function CreditSection({
           deltaDirectionGoodWhenUp={false}
           benchmark={buildBenchmarkComparison(leverage)}
           reason={metricMissingReason(leverage)}
+          notMeaningful={leverage?.not_meaningful}
           documentsHref={documentsHref}
           addMissingHref={buildAddMissingLineItemHref(companyId, leverage, metrics?.period_start, metrics?.period_end)}
         />
@@ -296,6 +316,7 @@ export function CreditSection({
       <div className="mb-8">
         <BridgeCard companyName={companyName} currency={currency} bridgeSteps={bridgeSteps} />
       </div>
+      <AudienceChartsSection charts={audienceCharts} currency={currency} />
     </>
   );
 }

@@ -1,3 +1,5 @@
+import type { PeriodType } from "@/types/metrics";
+
 export interface FinancialStatement {
   id: string;
   company_id: string;
@@ -7,6 +9,12 @@ export interface FinancialStatement {
   currency: string;
   period_start: string;
   period_end: string;
+  period_type: PeriodType;
+  // Set by the backend's ValidationService right after extraction/manual entry -
+  // "needs_review" means this row failed an accounting-identity check (see
+  // AddLineItemModal-adjacent docs) and is excluded from every metric/chart until
+  // an analyst corrects it - surfaced here so the Documents page can flag it.
+  status: "confirmed" | "needs_review";
   confidence_score: number | null;
   source_excerpt: string | null;
   source_page: number | null;

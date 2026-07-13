@@ -65,6 +65,8 @@ function statement(overrides: Partial<FinancialStatement> = {}): FinancialStatem
     currency: "EUR",
     period_start: "2024-07-01",
     period_end: "2025-06-30",
+    period_type: "FY",
+    status: "confirmed",
     confidence_score: 0.95,
     source_excerpt: "Revenue was EUR 836,991",
     source_page: 3,

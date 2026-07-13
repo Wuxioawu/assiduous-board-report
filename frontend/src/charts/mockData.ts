@@ -8,25 +8,27 @@ import type {
 // values. Shapes match the real API response types so swapping in live data
 // later requires no prop-type changes.
 
+// Calendar-quarter shaped (a calendar-year company, fiscal_year_start_month=1,
+// so fiscal_quarter/fiscal_year match the plain calendar quarter/year).
 export const mockRevenueTrendSeries: RevenueTrendSeries[] = [
   {
     label: "This Year Revenue",
     points: [
-      { period_start: "2025-01-01", period_end: "2025-03-31", value: 4_200_000 },
-      { period_start: "2025-04-01", period_end: "2025-06-30", value: 4_650_000 },
-      { period_start: "2025-07-01", period_end: "2025-09-30", value: 4_980_000 },
-      { period_start: "2025-10-01", period_end: "2025-12-31", value: 5_430_000 },
-      { period_start: "2026-01-01", period_end: "2026-03-31", value: 5_120_000 },
+      { period_start: "2025-01-01", period_end: "2025-03-31", period_type: "Q", fiscal_year: 2025, fiscal_quarter: 1, value: 4_200_000 },
+      { period_start: "2025-04-01", period_end: "2025-06-30", period_type: "Q", fiscal_year: 2025, fiscal_quarter: 2, value: 4_650_000 },
+      { period_start: "2025-07-01", period_end: "2025-09-30", period_type: "Q", fiscal_year: 2025, fiscal_quarter: 3, value: 4_980_000 },
+      { period_start: "2025-10-01", period_end: "2025-12-31", period_type: "Q", fiscal_year: 2025, fiscal_quarter: 4, value: 5_430_000 },
+      { period_start: "2026-01-01", period_end: "2026-03-31", period_type: "Q", fiscal_year: 2026, fiscal_quarter: 1, value: 5_120_000 },
     ],
   },
   {
     label: "Prior Year Same Period",
     points: [
-      { period_start: "2024-01-01", period_end: "2024-03-31", value: 3_700_000 },
-      { period_start: "2024-04-01", period_end: "2024-06-30", value: 3_950_000 },
-      { period_start: "2024-07-01", period_end: "2024-09-30", value: 4_260_000 },
-      { period_start: "2024-10-01", period_end: "2024-12-31", value: 4_610_000 },
-      { period_start: "2025-01-01", period_end: "2025-03-31", value: 4_200_000 },
+      { period_start: "2024-01-01", period_end: "2024-03-31", period_type: "Q", fiscal_year: 2024, fiscal_quarter: 1, value: 3_700_000 },
+      { period_start: "2024-04-01", period_end: "2024-06-30", period_type: "Q", fiscal_year: 2024, fiscal_quarter: 2, value: 3_950_000 },
+      { period_start: "2024-07-01", period_end: "2024-09-30", period_type: "Q", fiscal_year: 2024, fiscal_quarter: 3, value: 4_260_000 },
+      { period_start: "2024-10-01", period_end: "2024-12-31", period_type: "Q", fiscal_year: 2024, fiscal_quarter: 4, value: 4_610_000 },
+      { period_start: "2025-01-01", period_end: "2025-03-31", period_type: "Q", fiscal_year: 2025, fiscal_quarter: 1, value: 4_200_000 },
     ],
   },
 ];
