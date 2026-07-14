@@ -9,7 +9,7 @@ import { BUDGET_LINE_ITEMS, BudgetForm } from "@/components/budgets/BudgetForm";
 import { AppShell } from "@/components/layout/AppShell";
 import { Spinner } from "@/components/ui/Spinner";
 import { useAuth } from "@/hooks/useAuth";
-import { formatPeriodDateRange, formatPeriodOptionLabel } from "@/lib/periods";
+import { formatPeriodLabel } from "@/lib/periods";
 import { canEditData } from "@/lib/roles";
 import type { BudgetEntryInput } from "@/types/budget";
 import type { Company, CompanyPeriod } from "@/types/company";
@@ -85,8 +85,6 @@ export function BudgetCreateView() {
     }
   }
 
-  const selectedPeriodEntry = periods.find((p) => p.period_end === selectedPeriodEnd);
-
   return (
     <AppShell>
       <Link
@@ -129,15 +127,10 @@ export function BudgetCreateView() {
               >
                 {periods.map((p) => (
                   <option key={p.period_end} value={p.period_end}>
-                    {formatPeriodOptionLabel(p)}
+                    {formatPeriodLabel(p, "compact")}
                   </option>
                 ))}
               </select>
-              {selectedPeriodEntry?.fiscal_label && (
-                <span className="whitespace-nowrap text-xs text-muted">
-                  ({formatPeriodDateRange(selectedPeriodEntry.period_start, selectedPeriodEntry.period_end)})
-                </span>
-              )}
             </label>
           }
         />

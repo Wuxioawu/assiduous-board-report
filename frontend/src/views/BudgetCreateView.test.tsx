@@ -41,7 +41,14 @@ function company(overrides: Partial<Company> = {}): Company {
 }
 
 function period(overrides: Partial<CompanyPeriod> = {}): CompanyPeriod {
-  return { period_start: "2024-07-01", period_end: "2025-06-30", fiscal_label: null, ...overrides };
+  return {
+    period_start: "2024-07-01",
+    period_end: "2025-06-30",
+    period_type: "FY",
+    fiscal_year: 2025,
+    fiscal_quarter: null,
+    ...overrides,
+  };
 }
 
 function mockAuth(role: UserRole) {

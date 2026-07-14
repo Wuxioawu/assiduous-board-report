@@ -52,7 +52,14 @@ function company(overrides: Partial<Company> = {}): Company {
 }
 
 function period(overrides: Partial<CompanyPeriod> = {}): CompanyPeriod {
-  return { period_start: "2024-07-01", period_end: "2025-06-30", fiscal_label: "FY2025 H2", ...overrides };
+  return {
+    period_start: "2024-07-01",
+    period_end: "2025-06-30",
+    period_type: "FY",
+    fiscal_year: 2025,
+    fiscal_quarter: null,
+    ...overrides,
+  };
 }
 
 function statement(overrides: Partial<FinancialStatement> = {}): FinancialStatement {
@@ -163,7 +170,7 @@ describe("CompanyFinancialDataView", () => {
       vi.mocked(getCompany).mockResolvedValue(company());
       vi.mocked(getCompanyPeriods).mockResolvedValue([
         period(),
-        period({ period_start: "2023-07-01", period_end: "2024-06-30", fiscal_label: "FY2024 H2" }),
+        period({ period_start: "2023-07-01", period_end: "2024-06-30", fiscal_year: 2024 }),
       ]);
       vi.mocked(listFinancialStatements).mockResolvedValue([
         statement({ id: "fs-1", taxonomy_code: "REVENUE", extracted_by: "ai" }),

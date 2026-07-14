@@ -9,7 +9,7 @@ import { BUDGET_LINE_ITEMS, BudgetForm } from "@/components/budgets/BudgetForm";
 import { AppShell } from "@/components/layout/AppShell";
 import { Spinner } from "@/components/ui/Spinner";
 import { useAuth } from "@/hooks/useAuth";
-import { formatPeriodDateRange, formatPeriodOptionLabel } from "@/lib/periods";
+import { formatPeriodLabel } from "@/lib/periods";
 import { canEditData } from "@/lib/roles";
 import type { BudgetEntryInput } from "@/types/budget";
 import type { Company, CompanyPeriod } from "@/types/company";
@@ -131,13 +131,8 @@ export function BudgetEditView() {
             <div className="flex items-center gap-2 text-sm text-muted">
               Period
               <span className="font-medium text-navy">
-                {periodEntry ? formatPeriodOptionLabel(periodEntry) : period}
+                {periodEntry ? formatPeriodLabel(periodEntry, "full") : period}
               </span>
-              {periodEntry?.fiscal_label && (
-                <span className="whitespace-nowrap text-xs text-muted">
-                  ({formatPeriodDateRange(periodEntry.period_start, periodEntry.period_end)})
-                </span>
-              )}
             </div>
           }
         />

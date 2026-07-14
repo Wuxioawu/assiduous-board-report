@@ -79,9 +79,9 @@ export function CompanyFinancialDataView() {
       .then(setCompany)
       .catch(() => setError("Failed to load company"));
     // Periods come from the same GET /companies/{id}/periods endpoint ReportView
-    // and BudgetSettingsView use (fiscal_label included) - loaded alongside
-    // statements rather than re-derived locally, so the period pickers here
-    // never drift out of sync with the fiscal-label system again.
+    // and BudgetSettingsView use - loaded alongside statements rather than
+    // re-derived locally, so every period picker in the app renders identical
+    // text (see lib/periods.formatPeriodLabel).
     Promise.all([refresh(), getCompanyPeriods(companyId).then(setPeriods)])
       .catch(() => setError("Failed to load financial statements"))
       .finally(() => setIsLoading(false));
@@ -131,10 +131,9 @@ export function CompanyFinancialDataView() {
     }
   }
 
-  const selectedFilterPeriod = periods.find((p) => periodKeyOf(p) === periodFilter);
-  // Looks up each statement's fiscal label for the table's Period column - a
-  // FinancialStatement itself doesn't carry one, only the periods fetched from
-  // GET /companies/{id}/periods do.
+  // Looks up each statement's period label for the table's Period column - a
+  // FinancialStatement itself doesn't carry period_type/fiscal_year, only the
+  // periods fetched from GET /companies/{id}/periods do.
   const periodsByKey = useMemo(() => new Map(periods.map((p) => [periodKeyOf(p), p])), [periods]);
 
   const hasActiveFilters = searchInput.trim() !== "" || periodFilter !== "all" || sourceFilter !== "all";
@@ -158,7 +157,6 @@ export function CompanyFinancialDataView() {
     });
   }, [statements, periodFilter, sourceFilter, debouncedSearch]);
 
-  const selectedAddPeriod = periods.find((p) => periodKeyOf(p) === addPeriodKey);
   // Memoized so typing in the Add-Line-Item form's Value/Note fields (state
   // that lives in this same component) doesn't recompute this on every
   // keystroke - only when the period, the taxonomy list, or the selected
@@ -291,7 +289,6 @@ export function CompanyFinancialDataView() {
             periods={periods}
             periodFilter={periodFilter}
             onPeriodFilterChange={setPeriodFilter}
-            selectedFilterPeriod={selectedFilterPeriod}
             sourceFilter={sourceFilter}
             onSourceFilterChange={setSourceFilter}
             hasActiveFilters={hasActiveFilters}
@@ -343,7 +340,6 @@ export function CompanyFinancialDataView() {
           onTaxonomyCodeChange={setAddTaxonomyCode}
           periodKey={addPeriodKey}
           onPeriodKeyChange={setAddPeriodKey}
-          selectedPeriod={selectedAddPeriod}
           value={addValue}
           onValueChange={setAddValue}
           currency={addCurrency}

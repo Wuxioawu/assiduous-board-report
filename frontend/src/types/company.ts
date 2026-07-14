@@ -1,3 +1,5 @@
+import type { PeriodLabelFields } from "@/types/metrics";
+
 export type ReportingFrequency = "quarterly" | "half_yearly" | "annual";
 
 export interface Company {
@@ -51,10 +53,10 @@ export interface CompanyUpdatePayload extends CompanyProfileFields {
   fiscal_year_start_month?: number;
 }
 
-export interface CompanyPeriod {
+// Extends PeriodLabelFields so a CompanyPeriod can be passed straight into
+// lib/periods.formatPeriodLabel - see types/metrics.ts.
+export interface CompanyPeriod extends PeriodLabelFields {
   period_start: string;
-  period_end: string;
-  fiscal_label: string | null;
 }
 
 export interface CompanyFetchResult {

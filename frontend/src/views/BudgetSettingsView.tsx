@@ -12,7 +12,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { useAuth } from "@/hooks/useAuth";
 import { useConfirmDelete } from "@/hooks/useConfirmDelete";
-import { formatPeriodDateRange } from "@/lib/periods";
+import { formatPeriodLabel } from "@/lib/periods";
 import { canEditData } from "@/lib/roles";
 import type { BudgetPeriodSummary } from "@/types/budget";
 import type { Company, CompanyPeriod } from "@/types/company";
@@ -63,26 +63,19 @@ export function BudgetSettingsView() {
       .finally(() => setIsLoading(false));
   }, [companyId, loadSummaries]);
 
-  // Fiscal label as primary text with the raw range as smaller muted subtext,
-  // matching ReportView/CompanyFinancialDataView - falls back to just the raw
-  // range for a period with no computed label.
+  // formatPeriodLabel's full mode, matching every other period display in the
+  // app - falls back to the raw range only if this summary's period isn't in
+  // `periods` at all (shouldn't normally happen).
   function renderSummaryPeriod(summary: BudgetPeriodSummary) {
-    const fiscalLabel = periods.find((p) => p.period_end === summary.period_end)?.fiscal_label;
-    if (!fiscalLabel) {
+    const period = periods.find((p) => p.period_end === summary.period_end);
+    if (!period) {
       return (
         <>
           {summary.period_start} → {summary.period_end}
         </>
       );
     }
-    return (
-      <>
-        {fiscalLabel}{" "}
-        <span className="text-xs text-muted">
-          ({formatPeriodDateRange(summary.period_start, summary.period_end)})
-        </span>
-      </>
-    );
+    return <>{formatPeriodLabel(period, "full")}</>;
   }
 
   function renderActions(summary: BudgetPeriodSummary) {

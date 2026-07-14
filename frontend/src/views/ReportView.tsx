@@ -31,7 +31,7 @@ import {
   mostRecentPeriodType,
   periodTypesPresent,
 } from "@/lib/dashboardData";
-import { formatPeriodDateRange } from "@/lib/periods";
+import { formatPeriodLabel } from "@/lib/periods";
 import type { ChartConfig } from "@/types/chart";
 import type { CompanyPeriod } from "@/types/company";
 import type { Audience } from "@/types/insight";
@@ -118,11 +118,7 @@ export function ReportView() {
       ? requestedPeriod
       : periods[0]?.period_end;
   const selectedPeriodInfo = periods.find((p) => p.period_end === selectedPeriod);
-  const selectedPeriodLabel = selectedPeriodInfo
-    ? selectedPeriodInfo.fiscal_label
-      ? `${selectedPeriodInfo.fiscal_label} (${formatPeriodDateRange(selectedPeriodInfo.period_start, selectedPeriodInfo.period_end)})`
-      : `${selectedPeriodInfo.period_start} → ${selectedPeriodInfo.period_end}`
-    : undefined;
+  const selectedPeriodLabel = selectedPeriodInfo ? formatPeriodLabel(selectedPeriodInfo, "full") : undefined;
 
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 

@@ -42,10 +42,13 @@ interface CompanyReportingCadenceFieldsProps {
   onChange: (values: CompanyCadenceFormState) => void;
 }
 
-/** Optional reporting-cadence fields (frequency + fiscal year start month) that
- * drive the fiscal-period labels shown on period selectors (e.g. "FY2026 H1")
- * instead of raw date ranges - see fiscal_periods.py on the backend. Leaving
- * reportingFrequency unset preserves today's raw-date-range display. */
+/** Optional reporting-cadence fields. fiscalYearStartMonth drives every period
+ * label shown across the app (e.g. "HY2026 (6M to Dec 2025)" - see
+ * fiscal_periods.py's fiscal_year_of/fiscal_quarter_of and frontend
+ * lib/periods.formatPeriodLabel, which derive purely from period dates + this
+ * setting). reportingFrequency itself is stored but not currently used to
+ * shape any label - it's a placeholder for future cadence-aware features
+ * (e.g. auto-fetch scheduling). */
 export function CompanyReportingCadenceFields({ idPrefix, values, onChange }: CompanyReportingCadenceFieldsProps) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row">
@@ -62,7 +65,7 @@ export function CompanyReportingCadenceFields({ idPrefix, values, onChange }: Co
           }
           className={SELECT_CLASS}
         >
-          <option value="">Not set (show raw date range)</option>
+          <option value="">Not set</option>
           {(Object.entries(REPORTING_FREQUENCY_LABELS) as [ReportingFrequency, string][]).map(
             ([value, label]) => (
               <option key={value} value={value}>

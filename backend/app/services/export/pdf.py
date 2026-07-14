@@ -8,11 +8,16 @@ from weasyprint import HTML
 
 from app.models.budget import Budget
 from app.models.company import Company
-from app.models.enums import Audience
+from app.models.enums import Audience, PeriodType
 from app.repositories.budget import BudgetRepository
 from app.services.insight.generator import get_or_generate_insight
 from app.services.insight.rendering import render_structured_content_as_text
-from app.services.metrics.fiscal_periods import compute_fiscal_label
+from app.services.metrics.fiscal_periods import (
+    classify_period_type,
+    fiscal_quarter_of,
+    fiscal_year_of,
+    format_period_label,
+)
 from app.services.metrics.orchestrator import get_or_compute_metrics
 from app.services.metrics.registry import METRIC_REGISTRY, MetricCategory
 
@@ -181,19 +186,31 @@ async def render_report_pdf(
             }
         )
 
+    # Same derivation routes/metrics.py and routes/companies.py already use -
+    # period_type is fully determined by the period's own dates, so the PDF
+    # never classifies a period differently than the dashboard did.
+    period_type = classify_period_type(period_start, target_period)
+    fiscal_year = fiscal_year_of(period_start, fiscal_year_start_month=company.fiscal_year_start_month)
+    fiscal_quarter = (
+        fiscal_quarter_of(period_start, fiscal_year_start_month=company.fiscal_year_start_month)
+        if period_type == PeriodType.Q
+        else None
+    )
+
     context = {
         "company_name": company.name,
         "period_start": period_start,
         "period_end": target_period,
-        # Same shared computation the frontend period selectors use (see
-        # fiscal_periods.py / frontend lib/periods.ts) - None for companies
-        # without a configured reporting cadence, in which case the template
-        # falls back to the raw date range exactly as before.
-        "fiscal_label": compute_fiscal_label(
-            period_start,
-            target_period,
-            reporting_frequency=company.reporting_frequency,
-            fiscal_year_start_month=company.fiscal_year_start_month,
+        # The single pre-formatted period label string (see fiscal_periods.py's
+        # format_period_label, which mirrors frontend lib/periods.ts field-for-
+        # field) - the template just prints this rather than building its own
+        # secondary date-range text, so the PDF never reads as a different
+        # period than the dropdown/header/charts show for the same data.
+        "period_label": format_period_label(
+            period_type=period_type,
+            period_end=target_period,
+            fiscal_year=fiscal_year,
+            fiscal_quarter=fiscal_quarter,
         ),
         "generated_at": datetime.now(UTC),
         "section_names": [SECTION_TITLES[a] for a in sections],

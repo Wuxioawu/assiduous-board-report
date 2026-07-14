@@ -19,9 +19,10 @@ class Company(UUIDPKMixin, TimestampMixin, Base):
     industry: Mapped[str | None] = mapped_column(String(255), nullable=True)
     fiscal_year_end: Mapped[str | None] = mapped_column(String(10), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
-    # Nullable: companies without a configured cadence fall back to displaying the
-    # raw period_start/period_end date range (see fiscal_periods.compute_fiscal_label
-    # and CompanyPeriod.fiscal_label) rather than a computed fiscal label.
+    # Not used to derive period labels (see fiscal_periods.format_period_label,
+    # which is driven purely by period dates + fiscal_year_start_month below) -
+    # kept as a company-level setting for future cadence-aware features (e.g.
+    # auto-fetch scheduling) without implying a particular label format.
     reporting_frequency: Mapped[ReportingFrequency | None] = mapped_column(
         Enum(ReportingFrequency, name="reporting_frequency"), nullable=True
     )

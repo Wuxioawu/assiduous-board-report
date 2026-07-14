@@ -42,7 +42,14 @@ function company(overrides: Partial<Company> = {}): Company {
 }
 
 function period(overrides: Partial<CompanyPeriod> = {}): CompanyPeriod {
-  return { period_start: "2024-07-01", period_end: "2025-06-30", fiscal_label: "FY2025 H2", ...overrides };
+  return {
+    period_start: "2024-07-01",
+    period_end: "2025-06-30",
+    period_type: "FY",
+    fiscal_year: 2025,
+    fiscal_quarter: null,
+    ...overrides,
+  };
 }
 
 function budgetEntry(overrides: Partial<BudgetEntry> = {}): BudgetEntry {
@@ -107,7 +114,7 @@ describe("BudgetEditView", () => {
 
     expect(await screen.findByDisplayValue("500000")).toBeInTheDocument();
     expect(screen.getByDisplayValue("120000")).toBeInTheDocument();
-    expect(screen.getByText("FY2025 H2")).toBeInTheDocument();
+    expect(screen.getByText("FY2025 (12M to Jun 2025)")).toBeInTheDocument();
   });
 
   it("shows an error when the period no longer exists", async () => {

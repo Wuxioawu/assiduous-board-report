@@ -174,8 +174,8 @@ describe("ReportView", () => {
 
   it("hides the period selector when there are no periods, shows it and switches when there are", async () => {
     vi.mocked(getCompanyPeriods).mockResolvedValue([
-      { period_start: "2024-07-01", period_end: "2025-06-30", fiscal_label: "FY2025 H2" },
-      { period_start: "2023-07-01", period_end: "2024-06-30", fiscal_label: "FY2024 H2" },
+      { period_start: "2024-07-01", period_end: "2025-06-30", period_type: "FY", fiscal_year: 2025, fiscal_quarter: null },
+      { period_start: "2023-07-01", period_end: "2024-06-30", period_type: "FY", fiscal_year: 2024, fiscal_quarter: null },
     ]);
     renderView();
 

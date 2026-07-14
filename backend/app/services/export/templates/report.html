@@ -217,16 +217,7 @@
     <div class="meta-row">
       <div>
         <div class="meta-label">Reporting Period</div>
-        <div class="meta-value">
-          {% if fiscal_label %}
-            {{ fiscal_label }}
-            <span class="meta-subtext">
-              ({% if period_start %}{{ period_start.strftime('%d %b %Y') }} &ndash; {% endif %}{{ period_end.strftime('%d %b %Y') }})
-            </span>
-          {% else %}
-            {% if period_start %}{{ period_start.strftime('%d %b %Y') }} &ndash; {% endif %}{{ period_end.strftime('%d %b %Y') }}
-          {% endif %}
-        </div>
+        <div class="meta-value">{{ period_label }}</div>
       </div>
       <div>
         <div class="meta-label">Generated</div>

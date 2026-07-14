@@ -1,6 +1,7 @@
 from datetime import date
+from typing import Literal
 
-from app.models.enums import PeriodType, ReportingFrequency
+from app.models.enums import PeriodType
 
 # Day-count bands for classifying a period's span as a quarter, half-year, or
 # full year from its dates alone. Bounds are generous (not exactly 91/182/365)
@@ -9,6 +10,8 @@ from app.models.enums import PeriodType, ReportingFrequency
 # non-overlapping.
 _QUARTER_MAX_DAYS = 100
 _HALF_YEAR_MAX_DAYS = 200
+
+_MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 
 def fiscal_year_of(period_start: date, *, fiscal_year_start_month: int) -> int:
@@ -57,33 +60,29 @@ def classify_period_type(period_start: date, period_end: date) -> PeriodType:
     return PeriodType.FY
 
 
-def compute_fiscal_label(
-    period_start: date,
-    period_end: date,
+def format_period_label(
     *,
-    reporting_frequency: ReportingFrequency | None,
-    fiscal_year_start_month: int,
-) -> str | None:
-    """Fiscal-year-aware label for a reporting period (e.g. "FY2026 H1"), given a
-    company's configured cadence and fiscal year start month.
-
-    Returns None when reporting_frequency isn't configured - callers should fall
-    back to displaying the raw period_start/period_end range in that case (see
-    CompanyPeriod.fiscal_label), rather than forcing a fiscal label onto a
-    company that hasn't set one up.
+    period_type: PeriodType,
+    period_end: date,
+    fiscal_year: int,
+    fiscal_quarter: int | None = None,
+    mode: Literal["compact", "full"] = "full",
+) -> str:
+    """The backend's single source of truth for how a period renders as text -
+    mirrors frontend lib/periods.ts's formatPeriodLabel field-for-field (same
+    canonical text, same compact/full split) so the PDF export (the one
+    period-label surface that can't call into the frontend) never drifts from
+    what the dropdown/header/charts show for the same period. Callers get
+    period_type/fiscal_year/fiscal_quarter the same way routes/metrics.py and
+    routes/companies.py already do: classify_period_type + fiscal_year_of +
+    fiscal_quarter_of.
     """
-    if reporting_frequency is None:
-        return None
-
-    fiscal_year = fiscal_year_of(period_start, fiscal_year_start_month=fiscal_year_start_month)
-    months_into_fy = (period_start.month - fiscal_year_start_month) % 12
-
-    if reporting_frequency == ReportingFrequency.ANNUAL:
-        return f"FY{fiscal_year}"
-    if reporting_frequency == ReportingFrequency.HALF_YEARLY:
-        half_index = months_into_fy // 6 + 1
-        return f"FY{fiscal_year} H{half_index}"
-    if reporting_frequency == ReportingFrequency.QUARTERLY:
-        quarter_index = months_into_fy // 3 + 1
-        return f"FY{fiscal_year} Q{quarter_index}"
-    return None
+    month = _MONTH_ABBR[period_end.month - 1]
+    if period_type == PeriodType.HY:
+        main, secondary = f"HY{fiscal_year}", f"(6M to {month} {period_end.year})"
+    elif period_type == PeriodType.FY:
+        main, secondary = f"FY{fiscal_year}", f"(12M to {month} {period_end.year})"
+    else:
+        quarter = fiscal_quarter if fiscal_quarter is not None else "?"
+        main, secondary = f"Q{quarter} FY{fiscal_year}", f"(3M to {month} {period_end.year})"
+    return main if mode == "compact" else f"{main} {secondary}"

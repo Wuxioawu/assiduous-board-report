@@ -4,7 +4,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.enums import ReportingFrequency
+from app.models.enums import PeriodType, ReportingFrequency
 
 _URL_PATTERN = re.compile(r"^https?://[^\s/$.?#][^\s]*$", re.IGNORECASE)
 
@@ -103,11 +103,16 @@ class CompanyLogoResponse(BaseModel):
 class CompanyPeriod(BaseModel):
     period_start: date
     period_end: date
-    # Computed from the company's reporting_frequency/fiscal_year_start_month
-    # (see services/metrics/fiscal_periods.py) - None when the company hasn't
-    # configured a reporting cadence, in which case the frontend falls back to
-    # displaying the raw period_start/period_end range as it always has.
-    fiscal_label: str | None = None
+    # Derived purely from the period's dates and the company's
+    # fiscal_year_start_month (see services/metrics/fiscal_periods.py:
+    # classify_period_type/fiscal_year_of/fiscal_quarter_of) - the same
+    # derivation the /metrics/history endpoint already uses, so every period
+    # in the app is classified identically. Feeds frontend lib/periods'
+    # formatPeriodLabel, the single source of truth for period display text.
+    period_type: PeriodType
+    fiscal_year: int
+    # Only meaningful when period_type is Q - the 1-4 quarter index.
+    fiscal_quarter: int | None = None
 
 
 class CompanyFetchResult(BaseModel):

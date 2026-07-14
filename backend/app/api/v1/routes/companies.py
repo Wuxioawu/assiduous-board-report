@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.deps import TenantContext, create_audit_log, get_or_404, get_tenant_context, require_role
 from app.db.session import get_db
-from app.models.enums import UserRole
+from app.models.enums import PeriodType, UserRole
 from app.repositories.company import CompanyRepository
 from app.repositories.document import DocumentRepository
 from app.repositories.financial_statement import FinancialStatementRepository
@@ -23,7 +23,7 @@ from app.schemas.company import (
 from app.services.avatar import ALLOWED_AVATAR_CONTENT_TYPES, process_avatar_image
 from app.services.extraction.auto_fetch import run_fetch_check
 from app.services.extraction.pipeline import run_extraction
-from app.services.metrics.fiscal_periods import compute_fiscal_label
+from app.services.metrics.fiscal_periods import classify_period_type, fiscal_quarter_of, fiscal_year_of
 from app.services.storage import StorageService, get_storage_service, is_remote_storage_path
 
 router = APIRouter(prefix="/companies", tags=["companies"])
@@ -297,19 +297,28 @@ async def list_company_periods(
     periods = await FinancialStatementRepository(db).list_periods(
         company_id=company_id, organization_id=tenant.org_id
     )
-    return [
-        CompanyPeriod(
-            period_start=start,
-            period_end=end,
-            fiscal_label=compute_fiscal_label(
-                start,
-                end,
-                reporting_frequency=company.reporting_frequency,
-                fiscal_year_start_month=company.fiscal_year_start_month,
-            ),
+    result = []
+    for start, end in periods:
+        # Same derivation the /metrics/history endpoint uses (see routes/metrics.py) -
+        # period_type is fully determined by the period's own dates, so every period
+        # in the app is classified identically regardless of which endpoint serves it.
+        period_type = classify_period_type(start, end)
+        fiscal_year = fiscal_year_of(start, fiscal_year_start_month=company.fiscal_year_start_month)
+        fiscal_quarter = (
+            fiscal_quarter_of(start, fiscal_year_start_month=company.fiscal_year_start_month)
+            if period_type == PeriodType.Q
+            else None
         )
-        for start, end in periods
-    ]
+        result.append(
+            CompanyPeriod(
+                period_start=start,
+                period_end=end,
+                period_type=period_type,
+                fiscal_year=fiscal_year,
+                fiscal_quarter=fiscal_quarter,
+            )
+        )
+    return result
 
 
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)

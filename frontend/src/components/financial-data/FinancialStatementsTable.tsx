@@ -1,7 +1,7 @@
 import { ExtractedByBadge } from "@/components/financial-data/ExtractedByBadge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { formatPeriodDateRange, periodKeyOf } from "@/lib/periods";
+import { formatPeriodLabel, periodKeyOf } from "@/lib/periods";
 import type { CompanyPeriod } from "@/types/company";
 import type { FinancialStatement } from "@/types/financialStatement";
 
@@ -46,27 +46,20 @@ export function FinancialStatementsTable({
     return <>{statement.value.toLocaleString()}</>;
   }
 
-  // The fiscal label as primary text with the raw date range as smaller muted
-  // subtext (e.g. "FY2026 H1 (Jul–Dec 2025)"), matching ReportView's period
-  // selector - falls back to just the raw range when the period has no
-  // computed label (company without a configured reporting cadence).
+  // formatPeriodLabel's full mode (e.g. "HY2026 (6M to Dec 2025)"), matching
+  // every other period display in the app - falls back to the raw range only
+  // when this statement's period isn't in periodsByKey at all (shouldn't
+  // normally happen, since periods are derived from the same statements).
   function renderPeriodCell(statement: FinancialStatement) {
     const period = periodsByKey.get(periodKeyOf(statement));
-    if (!period?.fiscal_label) {
+    if (!period) {
       return (
         <>
           {statement.period_start} → {statement.period_end}
         </>
       );
     }
-    return (
-      <>
-        {period.fiscal_label}{" "}
-        <span className="text-xs text-muted">
-          ({formatPeriodDateRange(statement.period_start, statement.period_end)})
-        </span>
-      </>
-    );
+    return <>{formatPeriodLabel(period, "full")}</>;
   }
 
   function renderStatementActions(statement: FinancialStatement) {

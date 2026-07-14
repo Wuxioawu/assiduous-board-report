@@ -1,6 +1,6 @@
 import { Search } from "lucide-react";
 
-import { formatPeriodDateRange, formatPeriodOptionLabel, periodKeyOf } from "@/lib/periods";
+import { formatPeriodLabel, periodKeyOf } from "@/lib/periods";
 import type { CompanyPeriod } from "@/types/company";
 
 export type SourceFilter = "all" | "ai" | "manual_override" | "manual_entry";
@@ -18,7 +18,6 @@ export function FinancialDataFilters({
   periods,
   periodFilter,
   onPeriodFilterChange,
-  selectedFilterPeriod,
   sourceFilter,
   onSourceFilterChange,
   hasActiveFilters,
@@ -31,7 +30,6 @@ export function FinancialDataFilters({
   periods: CompanyPeriod[];
   periodFilter: string;
   onPeriodFilterChange: (value: string) => void;
-  selectedFilterPeriod: CompanyPeriod | undefined;
   sourceFilter: SourceFilter;
   onSourceFilterChange: (value: SourceFilter) => void;
   hasActiveFilters: boolean;
@@ -57,26 +55,19 @@ export function FinancialDataFilters({
           />
         </div>
 
-        <span className="flex items-baseline gap-1.5">
-          <select
-            value={periodFilter}
-            onChange={(e) => onPeriodFilterChange(e.target.value)}
-            aria-label="Filter by period"
-            className="rounded-lg border border-surface-border bg-white px-3 py-2 text-sm text-navy outline-none transition-colors focus:border-coral focus:ring-1 focus:ring-coral"
-          >
-            <option value="all">All periods</option>
-            {periods.map((period) => (
-              <option key={periodKeyOf(period)} value={periodKeyOf(period)}>
-                {formatPeriodOptionLabel(period)}
-              </option>
-            ))}
-          </select>
-          {selectedFilterPeriod?.fiscal_label && (
-            <span className="whitespace-nowrap text-xs text-muted">
-              ({formatPeriodDateRange(selectedFilterPeriod.period_start, selectedFilterPeriod.period_end)})
-            </span>
-          )}
-        </span>
+        <select
+          value={periodFilter}
+          onChange={(e) => onPeriodFilterChange(e.target.value)}
+          aria-label="Filter by period"
+          className="rounded-lg border border-surface-border bg-white px-3 py-2 text-sm text-navy outline-none transition-colors focus:border-coral focus:ring-1 focus:ring-coral"
+        >
+          <option value="all">All periods</option>
+          {periods.map((period) => (
+            <option key={periodKeyOf(period)} value={periodKeyOf(period)}>
+              {formatPeriodLabel(period, "compact")}
+            </option>
+          ))}
+        </select>
 
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by source type">
           {SOURCE_FILTER_OPTIONS.map((opt) => (

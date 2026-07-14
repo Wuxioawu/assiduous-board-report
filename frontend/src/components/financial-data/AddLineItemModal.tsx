@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { formatPeriodDateRange, formatPeriodOptionLabel, periodKeyOf } from "@/lib/periods";
+import { formatPeriodLabel, periodKeyOf } from "@/lib/periods";
 import type { TaxonomyEntry } from "@/lib/taxonomy";
 import type { CompanyPeriod } from "@/types/company";
 
@@ -18,7 +18,6 @@ export function AddLineItemModal({
   onTaxonomyCodeChange,
   periodKey,
   onPeriodKeyChange,
-  selectedPeriod,
   value,
   onValueChange,
   currency,
@@ -36,7 +35,6 @@ export function AddLineItemModal({
   onTaxonomyCodeChange: (value: string) => void;
   periodKey: string;
   onPeriodKeyChange: (value: string) => void;
-  selectedPeriod: CompanyPeriod | undefined;
   value: string;
   onValueChange: (value: string) => void;
   currency: string;
@@ -104,25 +102,18 @@ export function AddLineItemModal({
           <label htmlFor="add-period" className="text-sm font-medium text-navy">
             Period
           </label>
-          <span className="flex items-baseline gap-1.5">
-            <select
-              id="add-period"
-              value={periodKey}
-              onChange={(e) => onPeriodKeyChange(e.target.value)}
-              className="min-h-[44px] flex-1 rounded-lg border border-surface-border bg-white px-3 py-2 text-sm text-navy outline-none focus:border-coral focus:ring-1 focus:ring-coral"
-            >
-              {periods.map((period) => (
-                <option key={periodKeyOf(period)} value={periodKeyOf(period)}>
-                  {formatPeriodOptionLabel(period)}
-                </option>
-              ))}
-            </select>
-            {selectedPeriod?.fiscal_label && (
-              <span className="whitespace-nowrap text-xs text-muted">
-                ({formatPeriodDateRange(selectedPeriod.period_start, selectedPeriod.period_end)})
-              </span>
-            )}
-          </span>
+          <select
+            id="add-period"
+            value={periodKey}
+            onChange={(e) => onPeriodKeyChange(e.target.value)}
+            className="min-h-[44px] flex-1 rounded-lg border border-surface-border bg-white px-3 py-2 text-sm text-navy outline-none focus:border-coral focus:ring-1 focus:ring-coral"
+          >
+            {periods.map((period) => (
+              <option key={periodKeyOf(period)} value={periodKeyOf(period)}>
+                {formatPeriodLabel(period, "compact")}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

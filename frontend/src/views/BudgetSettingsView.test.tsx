@@ -42,7 +42,14 @@ function company(overrides: Partial<Company> = {}): Company {
 }
 
 function period(overrides: Partial<CompanyPeriod> = {}): CompanyPeriod {
-  return { period_start: "2024-07-01", period_end: "2025-06-30", fiscal_label: "FY2025 H2", ...overrides };
+  return {
+    period_start: "2024-07-01",
+    period_end: "2025-06-30",
+    period_type: "FY",
+    fiscal_year: 2025,
+    fiscal_quarter: null,
+    ...overrides,
+  };
 }
 
 function budgetEntry(overrides: Partial<BudgetEntry> = {}): BudgetEntry {
@@ -123,7 +130,7 @@ describe("BudgetSettingsView", () => {
     expect(screen.getByText("No budgets set yet.")).toBeInTheDocument();
   });
 
-  it("shows saved budgets with the fiscal label and per-line-item values", async () => {
+  it("shows saved budgets with the period label and per-line-item values", async () => {
     mockAuth("owner");
     vi.mocked(getCompany).mockResolvedValue(company());
     vi.mocked(getCompanyPeriods).mockResolvedValue([period()]);
@@ -133,7 +140,7 @@ describe("BudgetSettingsView", () => {
     await waitForLoaded();
 
     const table = within(screen.getByRole("table"));
-    expect(table.getByText("FY2025 H2")).toBeInTheDocument();
+    expect(table.getByText("FY2025 (12M to Jun 2025)")).toBeInTheDocument();
     expect(table.getByText("500,000")).toBeInTheDocument();
     // EBITDA/OPEX/NET_INCOME have no entry for this summary - shown as an em dash.
     expect(table.getAllByText("—").length).toBeGreaterThan(0);
