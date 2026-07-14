@@ -1,0 +1,70 @@
+# Render Blueprint (https://render.com/docs/infrastructure-as-code) for the
+# backend web service. NOT self-activating on an existing, dashboard-created
+# service - see the "one-time manual step" note in the PR/commit description.
+# To adopt it: Render dashboard -> New -> Blueprint -> point at this repo, or
+# for an already-running service, Settings -> "Sync from render.yaml".
+#
+# preDeployCommand is Render's native release-step mechanism: it runs
+# `alembic upgrade head` once, in its own ephemeral instance built from the
+# same image, BEFORE Render starts routing traffic to the new deploy's
+# instance(s). A non-zero exit here aborts the deploy - Render marks it
+# failed and leaves the previous (already-migrated) version serving, exactly
+# the "fail loudly, never serve against an unmigrated schema" requirement.
+# See backend/Dockerfile for the redundant CMD-level fallback gate that
+# covers the case where this Blueprint isn't (yet) synced to the service.
+services:
+  - type: web
+    name: assiduous-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    healthCheckPath: /api/v1/health
+    preDeployCommand: alembic upgrade head
+    envVars:
+      # Postgres (Neon) connection - see backend/.env.example. Set as secrets
+      # in the Render dashboard (sync: false means "not tracked in this file").
+      - key: POSTGRES_HOST
+        sync: false
+      - key: POSTGRES_PORT
+        sync: false
+      - key: POSTGRES_USER
+        sync: false
+      - key: POSTGRES_PASSWORD
+        sync: false
+      - key: POSTGRES_DB
+        sync: false
+
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_BASE_URL
+        sync: false
+
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # File storage does NOT persist across deploys on Render's own
+      # filesystem - production must run with STORAGE_PROVIDER=supabase.
+      - key: STORAGE_PROVIDER
+        value: supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        sync: false
+
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_FROM_NAME
+        sync: false

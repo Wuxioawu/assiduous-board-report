@@ -78,7 +78,8 @@ Organization                      # the paying customer / internal Assiduous tea
 | AI extraction | Anthropic/OpenAI SDK, structured JSON output | Prompted against the standardized line-item taxonomy |
 | AI narrative | Same LLM, fed computed metrics + prior period context | Cached per period/audience |
 | Observability | Structured logging (JSON) + basic metrics | Prometheus-compatible later |
-| Deployment | Docker Compose (dev) → managed containers (prod) | AWS/Azure/Fly.io/Render all viable |
+| Deployment | Docker Compose (dev) → Render (prod), see `render.yaml` | DB is Neon (serverless Postgres); storage is Supabase in prod |
+| Schema migrations | Alembic, gated on every prod deploy | `render.yaml`'s `preDeployCommand` runs `alembic upgrade head` before traffic cuts over to the new deploy - a failed migration aborts the deploy and leaves the previous version serving (see `backend/Dockerfile` for the redundant CMD-level fallback gate, and `GET /api/v1/health/config` for the `schema_current` check) |
 | CI/CD | GitHub Actions | Build, test, lint on PR (see `.github/workflows/ci.yml`); deploy-on-merge not yet set up |
 
 ---
