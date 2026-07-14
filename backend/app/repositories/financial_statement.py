@@ -4,6 +4,7 @@ from datetime import date
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.enums import PeriodType, StatementStatus
 from app.models.financial_statement import FinancialStatement
 
 
@@ -12,14 +13,22 @@ class FinancialStatementRepository:
         self.session = session
 
     async def list_for_company(
-        self, *, company_id: uuid.UUID, organization_id: uuid.UUID
+        self, *, company_id: uuid.UUID, organization_id: uuid.UUID, exclude_needs_review: bool = False
     ) -> list[FinancialStatement]:
+        """exclude_needs_review=True is for anything that computes metrics/charts
+        from these rows (see services/metrics/orchestrator.py) - a statement that
+        failed a ValidationService identity check must never feed a number a
+        board sees. Defaults to False for UI-facing callers (the Documents page's
+        listing) that need to show needs_review rows so an analyst can fix them."""
+        conditions = [
+            FinancialStatement.company_id == company_id,
+            FinancialStatement.organization_id == organization_id,
+        ]
+        if exclude_needs_review:
+            conditions.append(FinancialStatement.status != StatementStatus.NEEDS_REVIEW)
         result = await self.session.execute(
             select(FinancialStatement)
-            .where(
-                FinancialStatement.company_id == company_id,
-                FinancialStatement.organization_id == organization_id,
-            )
+            .where(*conditions)
             .order_by(FinancialStatement.period_end.desc(), FinancialStatement.taxonomy_code)
         )
         return list(result.scalars().all())
@@ -126,6 +135,7 @@ class FinancialStatementRepository:
         currency: str,
         period_start: date,
         period_end: date,
+        period_type: PeriodType,
         confidence_score: float | None,
         source_excerpt: str | None,
         source_page: int | None,
@@ -140,6 +150,7 @@ class FinancialStatementRepository:
             currency=currency,
             period_start=period_start,
             period_end=period_end,
+            period_type=period_type,
             confidence_score=confidence_score,
             source_excerpt=source_excerpt,
             source_page=source_page,

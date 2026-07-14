@@ -3,6 +3,8 @@ from datetime import date
 
 from pydantic import BaseModel
 
+from app.models.enums import PeriodType
+
 
 class MetricValue(BaseModel):
     key: str
@@ -18,6 +20,11 @@ class MetricValue(BaseModel):
     # frontend deep-link straight to "add this missing line item" pre-filled. Absent when
     # the metric has a value, or is missing for a non-taxonomy reason.
     missing_taxonomy_codes: list[str] | None = None
+    # True for a ratio whose inputs are all present but the result isn't
+    # meaningful to show as a number (see MetricResult.not_meaningful) - the
+    # frontend renders "n/m" instead of "—" for this case, with `reason`
+    # still driving the tooltip.
+    not_meaningful: bool = False
     unit: str
     # Present only when a Budget entry exists for this metric's taxonomy code and
     # period (see api/v1/routes/metrics.py); absent otherwise so companies/periods
@@ -40,6 +47,14 @@ class MetricsResponse(BaseModel):
     currency: str
     period_start: date | None
     period_end: date | None
+    # Same derivation as MetricHistoryPoint's (see below) for this response's
+    # single current period - None exactly when period_start/period_end are
+    # None (no computed metrics for this company yet). Lets a metric card or
+    # the Cash Flow Bridge caption its period via lib/periods.formatPeriodLabel
+    # instead of a hardcoded "FY{year}".
+    period_type: PeriodType | None = None
+    fiscal_year: int | None = None
+    fiscal_quarter: int | None = None
     growth: list[MetricValue]
     profitability: list[MetricValue]
     cash: list[MetricValue]
@@ -50,6 +65,20 @@ class MetricsResponse(BaseModel):
 class MetricHistoryPoint(BaseModel):
     period_start: date
     period_end: date
+    # Derived server-side (see api/v1/routes/metrics.py) from whichever
+    # FinancialStatement rows fed this period's Metric computation, and the
+    # company's fiscal_year_start_month - not stored on Metric itself, since
+    # it's fully determined by that lookup and doesn't need its own column/
+    # migration. Lets the frontend build a correct "HY2026"/"FY2025"/
+    # "Q2 FY2026" label (see lib/periods.formatPeriodLabel) without needing
+    # fiscal-year math of its own, and lets it group/filter a trend line by
+    # period_type so a full-year point is never plotted next to a half-year
+    # one as if they were comparable (see ReportView's period-type toggle).
+    period_type: PeriodType
+    fiscal_year: int
+    # Only meaningful when period_type is "Q" - the 1-4 quarter index within
+    # fiscal_year. None for FY/HY points.
+    fiscal_quarter: int | None = None
     value: float
 
 

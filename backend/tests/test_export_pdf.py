@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from app.db.session import AsyncSessionLocal
-from app.models.enums import Audience, UserRole
+from app.models.enums import Audience, PeriodType, UserRole
 from app.models.financial_statement import FinancialStatement
 from app.repositories.company import CompanyRepository
 from app.services.export import pdf
@@ -115,6 +115,7 @@ async def _seed_company_with_revenue(db, *, value: float = 836_991.0, currency: 
             currency=currency,
             period_start=date(2024, 7, 1),
             period_end=date(2025, 6, 30),
+            period_type=PeriodType.FY,
             extracted_by="ai",
         )
     )

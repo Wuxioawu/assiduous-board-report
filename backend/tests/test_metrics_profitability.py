@@ -60,3 +60,35 @@ def test_gross_margin_missing_direct_code_when_neither_gross_profit_nor_cogs_ava
 
     assert results["gross_margin"].value is None
     assert results["gross_margin"].missing_taxonomy_codes == ["GROSS_PROFIT"]
+
+
+def test_ebitda_is_computed_from_operating_income_plus_depreciation_not_trusted_raw():
+    # Real Senus PLC HY2026 figures: a stray/incorrect raw "EBITDA" value
+    # (e.g. a stale manual override) must never be used once OPERATING_INCOME
+    # and DEPRECIATION are both available - this is exactly the bug that
+    # produced a wrong +14.7% EBITDA margin in the Board view instead of the
+    # correct -133.5% loss margin.
+    results = _by_key(
+        {
+            "REVENUE": 354_813,
+            "OPERATING_INCOME": -483_753,
+            "DEPRECIATION": 10_014,
+            "EBITDA": 52_000,  # a bogus stored value that must be ignored
+        }
+    )
+
+    assert results["ebitda"].value == pytest.approx(-473_739)
+    assert results["ebitda_margin"].value == pytest.approx(-133.5, abs=0.05)
+    # Negative EBITDA must render as a negative margin - never silently
+    # flipped positive by an abs() slipping into the ratio calculation.
+    assert results["ebitda_margin"].value < 0
+
+
+def test_ebitda_falls_back_to_raw_value_when_operating_income_or_depreciation_missing():
+    # No DEPRECIATION extracted for this period - can't compute, so the
+    # directly-stated EBITDA (when present) is used as the fallback rather
+    # than leaving the metric blank.
+    results = _by_key({"REVENUE": 1_000_000, "OPERATING_INCOME": 200_000, "EBITDA": 250_000})
+
+    assert results["ebitda"].value == 250_000
+    assert results["ebitda_margin"].value == pytest.approx(25.0)

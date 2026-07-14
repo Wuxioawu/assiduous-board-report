@@ -7,12 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import TenantContext, get_or_404, get_tenant_context
 from app.db.session import get_db
 from app.models.budget import Budget
+from app.models.enums import PeriodType
 from app.models.industry_benchmark import IndustryBenchmark
 from app.repositories.budget import BudgetRepository
 from app.repositories.company import CompanyRepository
 from app.repositories.industry_benchmark import IndustryBenchmarkRepository
 from app.repositories.metric import MetricRepository
 from app.schemas.metric import MetricHistoryPoint, MetricHistoryResponse, MetricsResponse, MetricValue
+from app.services.metrics.fiscal_periods import classify_period_type, fiscal_quarter_of, fiscal_year_of
 from app.services.metrics.orchestrator import ensure_metrics_for_all_periods, get_or_compute_metrics
 from app.services.metrics.registry import METRIC_REGISTRY, MetricCategory, MetricDefinition
 
@@ -32,6 +34,7 @@ def _build_metric_value(
         value=value,
         reason=m.reason,
         missing_taxonomy_codes=m.missing_taxonomy_codes,
+        not_meaningful=m.not_meaningful,
         unit=m.unit or "",
     )
     if value is None:
@@ -136,7 +139,7 @@ async def get_metrics_history(
     tenant: TenantContext = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db),
 ) -> MetricHistoryResponse:
-    await get_or_404(
+    company = await get_or_404(
         lambda: CompanyRepository(db).get_by_id(company_id, organization_id=tenant.org_id),
         detail="Company not found",
     )
@@ -153,8 +156,25 @@ async def get_metrics_history(
             # A trend line has no meaningful way to plot "missing" - skip
             # rather than break the series with a fabricated point.
             continue
+        # Metric doesn't store its own period_type - it's fully determined by
+        # the period dates (see classify_period_type), so deriving it here
+        # avoids a redundant column that would just have to be kept in sync.
+        period_type = classify_period_type(m.period_start, m.period_end)
+        fiscal_year = fiscal_year_of(m.period_start, fiscal_year_start_month=company.fiscal_year_start_month)
+        fiscal_quarter = (
+            fiscal_quarter_of(m.period_start, fiscal_year_start_month=company.fiscal_year_start_month)
+            if period_type == PeriodType.Q
+            else None
+        )
         series[m.metric_key].append(
-            MetricHistoryPoint(period_start=m.period_start, period_end=m.period_end, value=float(m.value))
+            MetricHistoryPoint(
+                period_start=m.period_start,
+                period_end=m.period_end,
+                period_type=period_type,
+                fiscal_year=fiscal_year,
+                fiscal_quarter=fiscal_quarter,
+                value=float(m.value),
+            )
         )
 
     return MetricHistoryResponse(company_id=company_id, series=series)

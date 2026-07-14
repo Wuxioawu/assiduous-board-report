@@ -1,17 +1,18 @@
-from app.services.metrics.common import MetricResult, PeriodFinancials, period_length_months
+from app.services.metrics.common import MetricResult, PeriodFinancials, compute_ebitda, period_length_months
 
 EBITDA = "EBITDA"
 CAPEX = "CAPITAL_EXPENDITURE"
 CASH = "CASH_AND_EQUIVALENTS"
 CURRENT_ASSETS = "CURRENT_ASSETS"
 CURRENT_LIABILITIES = "CURRENT_LIABILITIES"
+NET_OPERATING_CASH_FLOW = "NET_OPERATING_CASH_FLOW"
 
 
 def compute_cash_metrics(current: PeriodFinancials) -> list[MetricResult]:
     v = current.values
     results: list[MetricResult] = []
 
-    ebitda = v.get(EBITDA)
+    ebitda = compute_ebitda(v)
     capex = v.get(CAPEX)
     results.append(
         MetricResult(
@@ -45,19 +46,28 @@ def compute_cash_metrics(current: PeriodFinancials) -> list[MetricResult]:
         )
     )
 
+    # cash_balance / (abs(net_operating_cash_flow) / months_in_period) - uses
+    # the cash flow statement's own operating cash flow directly, rather than
+    # the EBITDA-CapEx proxy free_cash_flow above. Operating cash flow is what
+    # a filing actually states as cash consumed by the business; EBITDA-CapEx
+    # is a rougher approximation that (before the EBITDA fix above) could
+    # even come out cash-flow-positive on a materially loss-making company,
+    # masking a real runway problem (Senus HY2026: cash 735,189 /
+    # (410,291/6) ≈ 10.7 months).
+    operating_cash_flow = v.get(NET_OPERATING_CASH_FLOW)
     runway: float | None = None
     reason: str | None = None
     runway_missing: list[str] | None = None
     if cash is None:
         reason = "Cash balance not available"
         runway_missing = [CASH]
-    elif fcf is None:
-        reason = "Free cash flow not available to estimate the burn rate"
-        runway_missing = fcf_missing or None
-    elif fcf >= 0:
-        reason = "Company is free-cash-flow positive; runway is not applicable"
+    elif operating_cash_flow is None:
+        reason = "Net operating cash flow not available to estimate the burn rate"
+        runway_missing = [NET_OPERATING_CASH_FLOW]
+    elif operating_cash_flow >= 0:
+        reason = "Company is operating-cash-flow positive; runway is not applicable"
     else:
-        monthly_burn = -fcf / period_length_months(current)
+        monthly_burn = -operating_cash_flow / period_length_months(current)
         runway = cash / monthly_burn if monthly_burn > 0 else None
         if runway is None:
             reason = "Unable to compute a positive monthly burn rate"

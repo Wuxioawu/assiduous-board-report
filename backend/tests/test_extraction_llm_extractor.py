@@ -4,8 +4,14 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core.config import get_settings
+from app.models.enums import PeriodType
 from app.services.extraction import llm_extractor
-from app.services.extraction.llm_extractor import ExtractedLineItem, ExtractionResult, extract_financial_data
+from app.services.extraction.llm_extractor import (
+    ExtractedLineItem,
+    ExtractionResult,
+    UnitScale,
+    extract_financial_data,
+)
 from app.services.extraction.pdf_parser import PageText
 
 
@@ -23,9 +29,11 @@ def _line_item(**overrides) -> ExtractedLineItem:
     defaults = dict(
         taxonomy_code="REVENUE",
         value=836991.0,
+        unit_in_source=UnitScale.ONE,
         currency="EUR",
         period_start=date(2024, 7, 1),
         period_end=date(2025, 6, 30),
+        period_type=PeriodType.FY,
         confidence=0.95,
         source_excerpt="Revenue was EUR 836,991 for the period.",
         source_page=3,
@@ -92,3 +100,19 @@ async def test_calls_api_with_expected_model_and_document_text(monkeypatch):
 def test_extracted_line_item_rejects_out_of_range_confidence(bad_confidence):
     with pytest.raises(ValueError):
         _line_item(confidence=bad_confidence)
+
+
+@pytest.mark.parametrize(
+    ("value", "unit_in_source", "expected"),
+    [
+        (354813.0, UnitScale.ONE, 354813),
+        (354.8, UnitScale.THOUSANDS, 354800),
+        (0.3548, UnitScale.MILLIONS, 354800),
+        (138.0, UnitScale.ONE, 138),  # CUSTOMER_COUNT-shaped: no currency, ONE is a no-op
+    ],
+)
+def test_normalize_to_full_units(value, unit_in_source, expected):
+    from app.services.extraction.llm_extractor import normalize_to_full_units
+
+    item = _line_item(value=value, unit_in_source=unit_in_source)
+    assert normalize_to_full_units(item) == expected

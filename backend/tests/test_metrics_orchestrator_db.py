@@ -5,6 +5,7 @@ import pytest
 
 from app.db.session import AsyncSessionLocal
 from app.models.company import Company
+from app.models.enums import PeriodType
 from app.models.financial_statement import FinancialStatement
 from app.models.organization import Organization
 from app.repositories.financial_statement import FinancialStatementRepository
@@ -44,6 +45,7 @@ async def test_create_many_persists_every_row_with_a_distinct_id_from_one_flush(
                 currency="EUR",
                 period_start=date(2025, 7, 1),
                 period_end=date(2025, 12, 31),
+                period_type=PeriodType.HY,
                 confidence_score=None,
                 source_excerpt=None,
                 source_page=None,
@@ -80,6 +82,7 @@ async def test_compute_and_store_metrics_writes_exactly_the_registered_metric_se
                 currency="EUR",
                 period_start=period_start,
                 period_end=period_end,
+                period_type=PeriodType.HY,
                 confidence_score=None,
                 source_excerpt=None,
                 source_page=None,
@@ -130,6 +133,7 @@ async def test_recompute_replaces_the_period_without_leaving_duplicate_or_orphan
                     currency="EUR",
                     period_start=period_start,
                     period_end=period_end,
+                    period_type=PeriodType.HY,
                     confidence_score=None,
                     source_excerpt=None,
                     source_page=None,

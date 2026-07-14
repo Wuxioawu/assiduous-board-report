@@ -1,0 +1,63 @@
+{
+  "_comment": "Ground truth read directly from the real Senus PLC filing 'Senus_HalfYearResultsDec2025_PR_V19032026 FINAL clean.pdf' (stored at storage/b48fa0f5-7729-4710-979f-4feb7b0dbcf2/d41650f3-6f2c-4d89-8435-e57c37640343/, copied to tests/fixtures/senus_hy2026.pdf), pages 5-7: Consolidated Profit and Loss Account, Consolidated Balance Sheet, Consolidated cash flow statement. Values are the document's own printed figures, not derived - this is what tests/test_extraction_regression.py asserts the real extraction pipeline reproduces, so a prompt change that silently degrades accuracy shows up as a test failure instead of shipping unnoticed. DEBT_SERVICE isn't stated as a combined interest+principal figure anywhere in this filing - only interest paid ('Interest payable and similar expenses'/'Interest Paid') is disclosed, which the extraction prompt treats as an acceptable interim-period proxy (see llm_extractor.py), so DEBT_SERVICE here equals interest paid alone. CONTINGENT_CONSIDERATION is absent from the HY2025 comparative period because the Loamin acquisition (which created it) hadn't happened yet - the filing's own comparative column is genuinely blank for that line, not a extraction gap.",
+  "document_filename": "Senus_HalfYearResultsDec2025_PR_V19032026 FINAL clean.pdf",
+  "periods": {
+    "HY2026": {
+      "period_start": "2025-07-01",
+      "period_end": "2025-12-31",
+      "period_type": "HY",
+      "line_items": {
+        "REVENUE": 354813,
+        "COST_OF_GOODS_SOLD": 64861,
+        "GROSS_PROFIT": 289952,
+        "OPERATING_EXPENSES": 781975,
+        "OPERATING_INCOME": -483753,
+        "DEPRECIATION": 10014,
+        "NET_INCOME": -485144,
+        "CASH_AND_EQUIVALENTS": 735189,
+        "CURRENT_ASSETS": 923339,
+        "CURRENT_LIABILITIES": 387105,
+        "NET_ASSETS": 561081,
+        "TOTAL_EQUITY": 561081,
+        "TOTAL_DEBT": 76474,
+        "CONTINGENT_CONSIDERATION": 850000,
+        "CAPITAL_EXPENDITURE": 8500,
+        "DEBT_SERVICE": 1391,
+        "CASH_OPENING": 140135,
+        "NET_OPERATING_CASH_FLOW": -410291,
+        "NET_INVESTING_CASH_FLOW": -8500,
+        "NET_FINANCING_CASH_FLOW": 1013846,
+        "CASH_CLOSING": 735189,
+        "NEW_EQUITY_RAISED": 1138683,
+        "SHARES_OUTSTANDING": 2561332
+      }
+    },
+    "HY2025": {
+      "period_start": "2024-07-01",
+      "period_end": "2024-12-31",
+      "period_type": "HY",
+      "line_items": {
+        "REVENUE": 340931,
+        "COST_OF_GOODS_SOLD": 69600,
+        "GROSS_PROFIT": 272331,
+        "OPERATING_EXPENSES": 677908,
+        "OPERATING_INCOME": -405577,
+        "DEPRECIATION": 10016,
+        "NET_INCOME": -406613,
+        "CASH_AND_EQUIVALENTS": 72382,
+        "CURRENT_ASSETS": 283533,
+        "CURRENT_LIABILITIES": 90111,
+        "NET_ASSETS": 173316,
+        "TOTAL_EQUITY": 173316,
+        "TOTAL_DEBT": 85468,
+        "CAPITAL_EXPENDITURE": 0,
+        "DEBT_SERVICE": 1036,
+        "CASH_OPENING": 424639,
+        "NET_OPERATING_CASH_FLOW": -450181,
+        "NET_INVESTING_CASH_FLOW": 0,
+        "NET_FINANCING_CASH_FLOW": 97924,
+        "CASH_CLOSING": 72382
+      }
+    }
+  }
+}

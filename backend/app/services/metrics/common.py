@@ -11,6 +11,22 @@ class PeriodFinancials:
     values: dict[str, float]
 
 
+def compute_ebitda(values: dict[str, float]) -> float | None:
+    """EBITDA = operating income (already before interest/tax) with
+    depreciation added back - the single source of truth used everywhere
+    EBITDA feeds a metric (profitability.py's ebitda/ebitda_margin, cash.py's
+    free_cash_flow/cash_runway_months, solvency.py's dscr/leverage_ratio), so
+    a raw stored "EBITDA" statement value (unreliable - see
+    profitability.py's docstring on why) is never trusted in more than one
+    place with different results. Falls back to a directly-extracted EBITDA
+    value only when OPERATING_INCOME or DEPRECIATION is missing."""
+    operating_income = values.get("OPERATING_INCOME")
+    depreciation = values.get("DEPRECIATION")
+    if operating_income is not None and depreciation is not None:
+        return operating_income + depreciation
+    return values.get("EBITDA")
+
+
 @dataclass
 class MetricResult:
     key: str
@@ -22,6 +38,15 @@ class MetricResult:
     # when the metric has a value, or when it's missing for a reason that isn't a
     # single taxonomy code (e.g. growth.py's "no prior-year period found").
     missing_taxonomy_codes: list[str] | None = None
+    # True for a ratio whose inputs are all present but the result is
+    # mathematically nonsensical to present as a plain number - e.g. DSCR or
+    # a leverage ratio divided by a negative/zero EBITDA, which produces a
+    # negative multiple that looks like a real (favorable-seeming!) ratio but
+    # means nothing. Distinct from the ordinary "value is None + reason"
+    # missing-data case (see solvency.py): the data isn't missing, the result
+    # just isn't meaningful - the frontend renders "n/m" instead of "—" for
+    # this case, with `reason` still driving the explanatory tooltip.
+    not_meaningful: bool = False
 
 
 def period_length_days(period: PeriodFinancials) -> int:

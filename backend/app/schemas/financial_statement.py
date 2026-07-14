@@ -3,6 +3,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.enums import PeriodType, StatementStatus
+
 
 class FinancialStatementRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -15,6 +17,13 @@ class FinancialStatementRead(BaseModel):
     currency: str
     period_start: date
     period_end: date
+    period_type: PeriodType
+    # Set by ValidationService right after extraction/manual entry - see
+    # app/services/validation/service.py. NEEDS_REVIEW rows are excluded from
+    # metrics/chart computation (FinancialStatementRepository.list_for_company's
+    # exclude_needs_review) but still show up here so the Documents page can
+    # surface them for an analyst to resolve.
+    status: StatementStatus
     confidence_score: float | None
     source_excerpt: str | None
     source_page: int | None

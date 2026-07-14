@@ -1,4 +1,4 @@
-from app.services.metrics.common import MetricResult, PeriodFinancials, safe_ratio_pct
+from app.services.metrics.common import MetricResult, PeriodFinancials, compute_ebitda, safe_ratio_pct
 
 REVENUE = "REVENUE"
 COGS = "COST_OF_GOODS_SOLD"
@@ -6,6 +6,7 @@ GROSS_PROFIT = "GROSS_PROFIT"
 OPEX = "OPERATING_EXPENSES"
 EBITDA = "EBITDA"
 OPERATING_INCOME = "OPERATING_INCOME"
+DEPRECIATION = "DEPRECIATION"
 NET_INCOME = "NET_INCOME"
 
 
@@ -14,13 +15,19 @@ def compute_profitability_metrics(current: PeriodFinancials) -> list[MetricResul
     revenue = v.get(REVENUE)
     cogs = v.get(COGS)
     opex = v.get(OPEX)
-    ebitda = v.get(EBITDA)
     operating_income = v.get(OPERATING_INCOME)
+    depreciation = v.get(DEPRECIATION)
     net_income = v.get(NET_INCOME)
 
     gross_profit = v.get(GROSS_PROFIT)
     if gross_profit is None and revenue is not None and cogs is not None:
         gross_profit = revenue - cogs
+
+    # See common.compute_ebitda - safe_ratio_pct below preserves whatever
+    # sign this computes to, so a loss produces a genuinely negative EBITDA
+    # and a negative margin, never silently flipped positive.
+    ebitda_is_computed = operating_income is not None and depreciation is not None
+    ebitda = compute_ebitda(v)
 
     def result(key: str, value: float | None, reason: str, missing: list[str]) -> MetricResult:
         if value is not None:
@@ -37,6 +44,11 @@ def compute_profitability_metrics(current: PeriodFinancials) -> list[MetricResul
 
     gross_margin_missing = missing_codes(
         needs_revenue=True, direct_code=GROSS_PROFIT, have_direct=gross_profit is not None
+    )
+    ebitda_missing = (
+        missing_codes(needs_revenue=True, direct_code=EBITDA, have_direct=ebitda is not None)
+        if not ebitda_is_computed
+        else ([REVENUE] if revenue is None else [])
     )
 
     return [
@@ -55,8 +67,8 @@ def compute_profitability_metrics(current: PeriodFinancials) -> list[MetricResul
         result(
             "ebitda_margin",
             safe_ratio_pct(ebitda, revenue),
-            "Revenue and EBITDA not both available",
-            missing_codes(needs_revenue=True, direct_code=EBITDA, have_direct=ebitda is not None),
+            "Revenue and EBITDA (operating income + depreciation, or a directly stated EBITDA) not both available",
+            ebitda_missing,
         ),
         result(
             "net_margin",
@@ -64,7 +76,12 @@ def compute_profitability_metrics(current: PeriodFinancials) -> list[MetricResul
             "Revenue and net income not both available",
             missing_codes(needs_revenue=True, direct_code=NET_INCOME, have_direct=net_income is not None),
         ),
-        result("ebitda", ebitda, "EBITDA not extracted", [] if ebitda is not None else [EBITDA]),
+        result(
+            "ebitda",
+            ebitda,
+            "Operating income + depreciation (or a directly stated EBITDA) not available",
+            [] if ebitda is not None else [OPERATING_INCOME, DEPRECIATION],
+        ),
         result("net_income", net_income, "Net income not extracted", [] if net_income is not None else [NET_INCOME]),
         result("operating_expenses", opex, "Operating expenses not extracted", [] if opex is not None else [OPEX]),
         result(

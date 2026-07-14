@@ -11,6 +11,7 @@ from app.models.invitation import Invitation
 from app.models.metric import Metric
 from app.models.organization import Organization
 from app.models.user import User
+from app.models.validation_result import ValidationResult
 
 __all__ = [
     "Base",
@@ -26,4 +27,5 @@ __all__ = [
     "Metric",
     "Organization",
     "User",
+    "ValidationResult",
 ]

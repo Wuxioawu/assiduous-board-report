@@ -42,6 +42,14 @@ build-backend = "setuptools.build_meta"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+markers = [
+    "regression: calls the real Anthropic API against a stored fixture PDF - excluded from a plain `pytest` run by addopts below (slow, costs money); run explicitly with `pytest -m regression`.",
+]
+# Excludes regression-marked tests from the default run - without this, a
+# dev/CI environment with ANTHROPIC_API_KEY set would silently hit the real
+# API (and its cost) on every single `pytest` invocation, since the marker
+# alone is just a label and doesn't skip anything by itself.
+addopts = "-m 'not regression'"
 
 [tool.setuptools.packages.find]
 include = ["app*"]

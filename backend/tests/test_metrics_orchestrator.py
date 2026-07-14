@@ -1,6 +1,7 @@
 from datetime import date
 
 from app.models.financial_statement import FinancialStatement
+from app.services.metrics.fiscal_periods import classify_period_type
 from app.services.metrics.orchestrator import _build_period_history
 
 
@@ -8,6 +9,7 @@ def _stmt(period_start: date, period_end: date, taxonomy_code: str, value: float
     return FinancialStatement(
         period_start=period_start,
         period_end=period_end,
+        period_type=classify_period_type(period_start, period_end),
         taxonomy_code=taxonomy_code,
         value=value,
         currency="USD",

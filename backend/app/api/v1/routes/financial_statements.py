@@ -17,7 +17,9 @@ from app.schemas.financial_statement import (
     FinancialStatementUpdate,
 )
 from app.services.extraction.taxonomy import TAXONOMY
+from app.services.metrics.fiscal_periods import classify_period_type
 from app.services.metrics.orchestrator import compute_and_store_metrics
+from app.services.validation.service import run_validation
 
 router = APIRouter(tags=["financial-statements"])
 
@@ -91,6 +93,11 @@ async def create_financial_statement(
         currency=payload.currency,
         period_start=payload.period_start,
         period_end=payload.period_end,
+        # No document to read a stated period_type from for a manual entry -
+        # classify_period_type's date-span heuristic is the best signal
+        # available (see its docstring for why this differs from the
+        # LLM-extraction path, which trusts the document's own wording).
+        period_type=classify_period_type(payload.period_start, payload.period_end),
         confidence_score=None,
         source_excerpt=payload.source_note,
         source_page=None,
@@ -112,6 +119,15 @@ async def create_financial_statement(
     )
     await db.commit()
     await db.refresh(statement)
+
+    await run_validation(
+        db,
+        company_id=company_id,
+        organization_id=tenant.org_id,
+        period_start=statement.period_start,
+        period_end=statement.period_end,
+    )
+    await db.commit()
 
     await compute_and_store_metrics(
         db,
@@ -196,6 +212,15 @@ async def update_financial_statement(
     )
     await db.commit()
     await db.refresh(statement)
+
+    await run_validation(
+        db,
+        company_id=statement.company_id,
+        organization_id=tenant.org_id,
+        period_start=statement.period_start,
+        period_end=statement.period_end,
+    )
+    await db.commit()
 
     await compute_and_store_metrics(
         db,

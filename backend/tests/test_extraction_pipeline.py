@@ -5,12 +5,12 @@ from unittest.mock import AsyncMock
 from sqlalchemy import select
 
 from app.db.session import AsyncSessionLocal
-from app.models.enums import DocumentStatus, UserRole
+from app.models.enums import DocumentStatus, PeriodType, UserRole
 from app.models.financial_statement import FinancialStatement
 from app.repositories.company import CompanyRepository
 from app.repositories.document import DocumentRepository
 from app.services.extraction import pipeline
-from app.services.extraction.llm_extractor import ExtractedLineItem
+from app.services.extraction.llm_extractor import ExtractedLineItem, UnitScale
 from app.services.extraction.pdf_parser import PageText
 from tests.conftest import create_org_with_user
 
@@ -45,9 +45,11 @@ def _line_item(**overrides) -> ExtractedLineItem:
     defaults = dict(
         taxonomy_code="REVENUE",
         value=836991.0,
+        unit_in_source=UnitScale.ONE,
         currency="EUR",
         period_start=date(2024, 7, 1),
         period_end=date(2025, 6, 30),
+        period_type=PeriodType.FY,
         confidence=0.95,
         source_excerpt="Revenue was EUR 836,991",
         source_page=1,
@@ -90,6 +92,7 @@ async def test_successful_extraction_marks_document_extracted_and_stores_line_it
         )
         assert {s.taxonomy_code for s in statements} == {"REVENUE", "COGS"}
         assert all(s.extracted_by == "ai" for s in statements)
+        assert all(s.period_type == PeriodType.FY for s in statements)
 
         # currency.py's majority-vote detection should have synced the
         # company's currency from the extracted line items (all EUR here).
@@ -101,6 +104,47 @@ async def test_successful_extraction_marks_document_extracted_and_stores_line_it
     assert call_kwargs["organization_id"] == org.id
     assert call_kwargs["company_id"] == company.id
     assert call_kwargs["period_end"] == date(2025, 6, 30)
+
+
+async def test_period_type_mismatch_is_logged_but_llms_value_is_kept(monkeypatch, caplog):
+    # A period spanning Jul-Dec (6 months) whose date math would classify as HY,
+    # but which the LLM (reading the document's own wording) says is "Q" -
+    # implausible for this specific span, but the point is that pipeline.py
+    # trusts the LLM's read of the document over pure date math, only logging
+    # the disagreement rather than overriding or rejecting it.
+    async with AsyncSessionLocal() as db:
+        org, company, document = await _create_company_and_document(db)
+
+    monkeypatch.setattr(pipeline, "get_storage_service", lambda: _FakeStorage())
+    monkeypatch.setattr(pipeline, "parse_pdf", lambda content: [PageText(page_number=1, text="Revenue EUR 1")])
+    mismatched_item = _line_item(
+        period_start=date(2025, 7, 1), period_end=date(2025, 12, 31), period_type=PeriodType.Q
+    )
+    monkeypatch.setattr(pipeline, "extract_financial_data", AsyncMock(return_value=[mismatched_item]))
+    monkeypatch.setattr(pipeline, "compute_and_store_metrics", AsyncMock())
+
+    await pipeline.run_extraction(
+        document_id=document.id,
+        organization_id=org.id,
+        company_id=company.id,
+        storage_path=document.storage_path,
+    )
+
+    assert "LLM classified" in caplog.text
+    assert "period_type=Q" in caplog.text
+
+    async with AsyncSessionLocal() as db:
+        statements = (
+            (
+                await db.execute(
+                    select(FinancialStatement).where(FinancialStatement.document_id == document.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(statements) == 1
+        assert statements[0].period_type == PeriodType.Q
 
 
 async def test_extraction_failure_marks_document_failed_with_error_and_stores_nothing(monkeypatch):

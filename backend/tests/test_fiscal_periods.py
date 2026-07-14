@@ -1,7 +1,12 @@
 from datetime import date
 
-from app.models.enums import ReportingFrequency
-from app.services.metrics.fiscal_periods import compute_fiscal_label
+from app.models.enums import PeriodType, ReportingFrequency
+from app.services.metrics.fiscal_periods import (
+    classify_period_type,
+    compute_fiscal_label,
+    fiscal_quarter_of,
+    fiscal_year_of,
+)
 
 
 def test_returns_none_when_reporting_frequency_is_not_configured():
@@ -63,3 +68,26 @@ def test_quarterly_labels_progress_through_a_non_calendar_fiscal_year():
         for month in (7, 10)
     ]
     assert labels == ["FY2026 Q1", "FY2026 Q2"]
+
+
+def test_classify_period_type_from_date_span():
+    assert classify_period_type(date(2025, 1, 1), date(2025, 3, 31)) == PeriodType.Q
+    assert classify_period_type(date(2025, 7, 1), date(2025, 12, 31)) == PeriodType.HY
+    assert classify_period_type(date(2024, 7, 1), date(2025, 6, 30)) == PeriodType.FY
+
+
+def test_fiscal_year_of_matches_senus_hy_and_fy_convention():
+    # Senus PLC: FY ends 30 June, so a fiscal year starting July 2025 is FY2026.
+    # The two comparative half-year periods reported alongside the FY2025
+    # annual figures resolve to different fiscal years despite both being HY,
+    # since one starts in FY2025 and the other in FY2026.
+    assert fiscal_year_of(date(2024, 7, 1), fiscal_year_start_month=7) == 2025  # HY2025 / FY2025
+    assert fiscal_year_of(date(2025, 7, 1), fiscal_year_start_month=7) == 2026  # HY2026
+    assert fiscal_year_of(date(2025, 3, 1), fiscal_year_start_month=1) == 2025  # calendar-year company
+
+
+def test_fiscal_quarter_of_progresses_through_a_non_calendar_fiscal_year():
+    assert fiscal_quarter_of(date(2025, 7, 1), fiscal_year_start_month=7) == 1
+    assert fiscal_quarter_of(date(2025, 10, 1), fiscal_year_start_month=7) == 2
+    assert fiscal_quarter_of(date(2026, 1, 1), fiscal_year_start_month=7) == 3
+    assert fiscal_quarter_of(date(2026, 4, 1), fiscal_year_start_month=7) == 4

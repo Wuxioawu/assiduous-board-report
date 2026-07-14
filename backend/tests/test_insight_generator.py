@@ -2,7 +2,7 @@ from datetime import date
 from unittest.mock import AsyncMock, MagicMock
 
 from app.db.session import AsyncSessionLocal
-from app.models.enums import Audience, InsightSeverity, UserRole
+from app.models.enums import Audience, InsightSeverity, PeriodType, UserRole
 from app.models.financial_statement import FinancialStatement
 from app.models.metric import Metric
 from app.repositories.company import CompanyRepository
@@ -88,6 +88,7 @@ async def _seed_company_with_revenue(db, *, currency: str = "EUR"):
             currency=currency,
             period_start=date(2024, 7, 1),
             period_end=date(2025, 6, 30),
+            period_type=PeriodType.FY,
             extracted_by="ai",
         )
     )

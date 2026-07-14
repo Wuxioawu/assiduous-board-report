@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import ARRAY, Date, ForeignKey, Numeric, String
+from sqlalchemy import ARRAY, Boolean, Date, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,6 +35,14 @@ class Metric(UUIDPKMixin, CreatedAtMixin, Base):
     # value is present and when it's missing for a non-taxonomy reason (e.g. no
     # prior-year period to compare against).
     missing_taxonomy_codes: Mapped[list[str] | None] = mapped_column(ARRAY(String(100)), nullable=True)
+    # True for a ratio whose inputs are all present but the result is
+    # mathematically nonsensical to show as a plain number - e.g. DSCR/
+    # leverage_ratio divided by a negative-or-zero EBITDA (see
+    # services/metrics/solvency.py). Distinct from value=None+reason (that
+    # means the data is missing; this means the data is present but the
+    # ratio itself isn't meaningful) - the frontend renders "n/m" instead of
+    # "—" for this case.
+    not_meaningful: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
     period_start: Mapped[date] = mapped_column(Date, nullable=False)
     period_end: Mapped[date] = mapped_column(Date, nullable=False)

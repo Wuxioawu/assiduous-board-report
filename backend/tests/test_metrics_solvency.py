@@ -24,10 +24,33 @@ def test_dscr_flags_zero_debt_service_instead_of_dividing_by_zero():
     assert results["dscr"].missing_taxonomy_codes is None
 
 
-def test_leverage_flags_zero_ebitda_instead_of_dividing_by_zero():
+def test_leverage_and_dscr_are_not_meaningful_when_ebitda_is_zero():
     results = _by_key({"EBITDA": 0, "DEBT_SERVICE": 200_000, "TOTAL_DEBT": 1_000_000})
     assert results["leverage_ratio"].value is None
-    assert results["leverage_ratio"].reason == "EBITDA is zero for this period"
+    assert results["leverage_ratio"].reason == "Not meaningful — EBITDA negative"
+    assert results["leverage_ratio"].not_meaningful is True
+    assert results["dscr"].value is None
+    assert results["dscr"].not_meaningful is True
+
+
+def test_leverage_and_dscr_are_not_meaningful_for_negative_ebitda_not_a_nonsense_multiple():
+    # Real Senus PLC HY2026 figures: EBITDA is a loss (-473,739). Dividing
+    # TOTAL_DEBT or DEBT_SERVICE by a negative EBITDA produces a negative
+    # multiple that looks like a real (even favorable-seeming) ratio but
+    # means nothing - must render as "n/m", never as that raw negative number.
+    results = _by_key({"EBITDA": -473_739, "DEBT_SERVICE": 1_391, "TOTAL_DEBT": 76_474})
+    assert results["dscr"].value is None
+    assert results["dscr"].not_meaningful is True
+    assert results["dscr"].reason == "Not meaningful — EBITDA negative"
+    assert results["leverage_ratio"].value is None
+    assert results["leverage_ratio"].not_meaningful is True
+    assert results["leverage_ratio"].reason == "Not meaningful — EBITDA negative"
+
+
+def test_not_meaningful_is_false_for_ordinary_positive_results():
+    results = _by_key({"EBITDA": 500_000, "DEBT_SERVICE": 200_000, "TOTAL_DEBT": 1_000_000})
+    assert results["dscr"].not_meaningful is False
+    assert results["leverage_ratio"].not_meaningful is False
 
 
 def test_missing_single_input_names_that_exact_taxonomy_code():

@@ -1,4 +1,4 @@
-from app.services.metrics.common import MetricResult, PeriodFinancials
+from app.services.metrics.common import MetricResult, PeriodFinancials, compute_ebitda
 
 EBITDA = "EBITDA"
 TOTAL_DEBT = "TOTAL_DEBT"
@@ -10,14 +10,21 @@ DEBT_SERVICE = "DEBT_SERVICE"
 # friendlier form than "EBITDA and DEBT_SERVICE".
 _DISPLAY_NAMES = {DEBT_SERVICE: "Debt Service", TOTAL_DEBT: "Total Debt"}
 
+# Shown as the metric's tooltip/reason when EBITDA <= 0 - a negative or zero
+# EBITDA makes DSCR/leverage come out as a negative or undefined multiple
+# that reads like a real (even favorable-looking) ratio but means nothing;
+# see MetricResult.not_meaningful, which the frontend renders as "n/m"
+# instead of "—" for this specific case (a missing-data dash would wrongly
+# suggest the data just isn't available, when it's actually present and
+# simply not a meaningful ratio here).
+_EBITDA_NOT_MEANINGFUL_REASON = "Not meaningful — EBITDA negative"
 
-def _missing_reason(*, missing: list[str], zero: str | None = None) -> str | None:
+
+def _missing_reason(*, missing: list[str]) -> str | None:
     """Names exactly which taxonomy code(s) are absent, e.g. "TOTAL_DEBT not
     extracted for this period" - specific enough that a user knows exactly
     what to go add on the Documents page, rather than a vague "some data
     missing"."""
-    if zero is not None:
-        return zero
     if not missing:
         return None
     if len(missing) == 1:
@@ -28,15 +35,19 @@ def _missing_reason(*, missing: list[str], zero: str | None = None) -> str | Non
 
 def compute_solvency_metrics(current: PeriodFinancials) -> list[MetricResult]:
     v = current.values
-    ebitda = v.get(EBITDA)
+    ebitda = compute_ebitda(v)
     debt_service = v.get(DEBT_SERVICE)
     total_debt = v.get(TOTAL_DEBT)
 
     missing_for_dscr = [name for name, value in (("EBITDA", ebitda), ("DEBT_SERVICE", debt_service)) if value is None]
     dscr = None
     dscr_reason = _missing_reason(missing=missing_for_dscr)
+    dscr_not_meaningful = False
     if not missing_for_dscr:
-        if debt_service == 0:
+        if ebitda <= 0:
+            dscr_reason = _EBITDA_NOT_MEANINGFUL_REASON
+            dscr_not_meaningful = True
+        elif debt_service == 0:
             dscr_reason = "Debt service is zero for this period"
         else:
             dscr = ebitda / debt_service
@@ -44,13 +55,21 @@ def compute_solvency_metrics(current: PeriodFinancials) -> list[MetricResult]:
     missing_for_leverage = [name for name, value in (("TOTAL_DEBT", total_debt), ("EBITDA", ebitda)) if value is None]
     leverage = None
     leverage_reason = _missing_reason(missing=missing_for_leverage)
+    leverage_not_meaningful = False
     if not missing_for_leverage:
-        if ebitda == 0:
-            leverage_reason = "EBITDA is zero for this period"
+        if ebitda <= 0:
+            leverage_reason = _EBITDA_NOT_MEANINGFUL_REASON
+            leverage_not_meaningful = True
         else:
             leverage = total_debt / ebitda
 
     return [
-        MetricResult("dscr", dscr, dscr_reason, missing_taxonomy_codes=missing_for_dscr or None),
-        MetricResult("leverage_ratio", leverage, leverage_reason, missing_taxonomy_codes=missing_for_leverage or None),
+        MetricResult(
+            "dscr", dscr, dscr_reason, missing_taxonomy_codes=missing_for_dscr or None,
+            not_meaningful=dscr_not_meaningful,
+        ),
+        MetricResult(
+            "leverage_ratio", leverage, leverage_reason, missing_taxonomy_codes=missing_for_leverage or None,
+            not_meaningful=leverage_not_meaningful,
+        ),
     ]

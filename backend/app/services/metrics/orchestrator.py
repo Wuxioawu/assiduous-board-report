@@ -59,9 +59,13 @@ async def compute_and_store_metrics(
 ) -> list[Metric]:
     """Recomputes every applicable metric for one reporting period from the
     company's FinancialStatement rows and overwrites the cached Metric rows
-    for that period. Defaults to the most recent period when none is given."""
+    for that period. Defaults to the most recent period when none is given.
+
+    exclude_needs_review=True: a statement that failed a ValidationService
+    identity check must never feed a metric a board sees - see
+    FinancialStatementRepository.list_for_company."""
     statements = await FinancialStatementRepository(db).list_for_company(
-        company_id=company_id, organization_id=organization_id
+        company_id=company_id, organization_id=organization_id, exclude_needs_review=True
     )
     if not statements:
         return []
@@ -98,6 +102,7 @@ async def compute_and_store_metrics(
             period_end=current.period_end,
             reason=r.reason,
             missing_taxonomy_codes=r.missing_taxonomy_codes,
+            not_meaningful=r.not_meaningful,
         )
         for r in results
     ]
