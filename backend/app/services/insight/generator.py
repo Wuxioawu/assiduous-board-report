@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.request_timing import atimed
 from app.models.enums import Audience, InsightSeverity
 from app.models.insight import Insight
 from app.models.metric import Metric
@@ -189,18 +190,21 @@ async def generate_narrative_insight(
 
     settings = get_settings()
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-    response = await client.messages.parse(
-        model=settings.insight_model,
-        max_tokens=2000,
-        system=_build_system_prompt(audience),
-        messages=[
-            {
-                "role": "user",
-                "content": _build_user_message(company_name, currency, target_period, metrics, prior_metrics),
-            }
-        ],
-        output_format=GeneratedInsight,
-    )
+    async with atimed("llm"):
+        response = await client.messages.parse(
+            model=settings.insight_model,
+            max_tokens=2000,
+            system=_build_system_prompt(audience),
+            messages=[
+                {
+                    "role": "user",
+                    "content": _build_user_message(
+                        company_name, currency, target_period, metrics, prior_metrics
+                    ),
+                }
+            ],
+            output_format=GeneratedInsight,
+        )
     generated = response.parsed_output
 
     period_start = metrics[0].period_start if metrics else target_period

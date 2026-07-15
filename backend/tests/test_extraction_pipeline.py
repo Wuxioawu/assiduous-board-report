@@ -12,16 +12,16 @@ from app.repositories.document import DocumentRepository
 from app.services.extraction import pipeline
 from app.services.extraction.llm_extractor import ExtractedLineItem, UnitScale
 from app.services.extraction.pdf_parser import PageText
+from app.services.storage import DocumentUnreachableError
 from tests.conftest import create_org_with_user
 
-
-class _FakeStorage:
-    """Stands in for get_storage_service() in these tests - only .get() is
-    exercised by run_extraction, and parse_pdf itself is separately mocked, so
-    the returned bytes' actual content never matters."""
-
-    async def get(self, storage_path: str) -> bytes:
-        return b"%PDF-fake-bytes"
+# run_extraction reads document bytes via storage.get_document_bytes(document),
+# imported by name into pipeline.py's own namespace - patching pipeline.
+# get_document_bytes (the lookup site) rather than app.services.storage.
+# get_document_bytes (the definition site) is what actually takes effect here.
+# parse_pdf itself is separately mocked in most tests below, so the returned
+# bytes' actual content never matters - only that the call succeeds.
+_FAKE_PDF_BYTES = b"%PDF-fake-bytes"
 
 
 async def _create_company_and_document(db):
@@ -62,7 +62,7 @@ async def test_successful_extraction_marks_document_extracted_and_stores_line_it
     async with AsyncSessionLocal() as db:
         org, company, document = await _create_company_and_document(db)
 
-    monkeypatch.setattr(pipeline, "get_storage_service", lambda: _FakeStorage())
+    monkeypatch.setattr(pipeline, "get_document_bytes", AsyncMock(return_value=_FAKE_PDF_BYTES))
     monkeypatch.setattr(pipeline, "parse_pdf", lambda content: [PageText(page_number=1, text="Revenue EUR 836,991")])
     line_items = [_line_item(), _line_item(taxonomy_code="COGS", value=200000.0, confidence=0.8)]
     monkeypatch.setattr(pipeline, "extract_financial_data", AsyncMock(return_value=line_items))
@@ -73,7 +73,6 @@ async def test_successful_extraction_marks_document_extracted_and_stores_line_it
         document_id=document.id,
         organization_id=org.id,
         company_id=company.id,
-        storage_path=document.storage_path,
     )
 
     async with AsyncSessionLocal() as db:
@@ -115,7 +114,7 @@ async def test_period_type_mismatch_is_logged_but_llms_value_is_kept(monkeypatch
     async with AsyncSessionLocal() as db:
         org, company, document = await _create_company_and_document(db)
 
-    monkeypatch.setattr(pipeline, "get_storage_service", lambda: _FakeStorage())
+    monkeypatch.setattr(pipeline, "get_document_bytes", AsyncMock(return_value=_FAKE_PDF_BYTES))
     monkeypatch.setattr(pipeline, "parse_pdf", lambda content: [PageText(page_number=1, text="Revenue EUR 1")])
     mismatched_item = _line_item(
         period_start=date(2025, 7, 1), period_end=date(2025, 12, 31), period_type=PeriodType.Q
@@ -127,7 +126,6 @@ async def test_period_type_mismatch_is_logged_but_llms_value_is_kept(monkeypatch
         document_id=document.id,
         organization_id=org.id,
         company_id=company.id,
-        storage_path=document.storage_path,
     )
 
     assert "LLM classified" in caplog.text
@@ -151,7 +149,7 @@ async def test_extraction_failure_marks_document_failed_with_error_and_stores_no
     async with AsyncSessionLocal() as db:
         org, company, document = await _create_company_and_document(db)
 
-    monkeypatch.setattr(pipeline, "get_storage_service", lambda: _FakeStorage())
+    monkeypatch.setattr(pipeline, "get_document_bytes", AsyncMock(return_value=_FAKE_PDF_BYTES))
     monkeypatch.setattr(pipeline, "parse_pdf", lambda content: [PageText(page_number=1, text="garbled")])
 
     async def _boom(pages):
@@ -165,7 +163,6 @@ async def test_extraction_failure_marks_document_failed_with_error_and_stores_no
         document_id=document.id,
         organization_id=org.id,
         company_id=company.id,
-        storage_path=document.storage_path,
     )
 
     async with AsyncSessionLocal() as db:
@@ -194,14 +191,13 @@ async def test_pdf_parsing_failure_marks_document_failed(monkeypatch):
     def _boom(content):
         raise ValueError("not a valid PDF")
 
-    monkeypatch.setattr(pipeline, "get_storage_service", lambda: _FakeStorage())
+    monkeypatch.setattr(pipeline, "get_document_bytes", AsyncMock(return_value=_FAKE_PDF_BYTES))
     monkeypatch.setattr(pipeline, "parse_pdf", _boom)
 
     await pipeline.run_extraction(
         document_id=document.id,
         organization_id=org.id,
         company_id=company.id,
-        storage_path=document.storage_path,
     )
 
     async with AsyncSessionLocal() as db:
@@ -211,26 +207,29 @@ async def test_pdf_parsing_failure_marks_document_failed(monkeypatch):
 
 
 async def test_storage_read_failure_marks_document_failed(monkeypatch):
-    # Covers the new storage.get() step itself failing (e.g. the object was
-    # deleted out from under a pending extraction, or a Supabase download
-    # error) - distinct from parse_pdf failing on bytes it did receive.
+    # Covers get_document_bytes() itself failing - the object was deleted out
+    # from under a pending extraction, a Supabase download error, or (per the
+    # storage-location refactor - see app.services.storage) the document's
+    # stored path/URL simply being unreachable - distinct from parse_pdf
+    # failing on bytes it did receive. Raises the same DocumentUnreachableError
+    # run_extraction actually catches now, rather than a bare FileNotFoundError,
+    # so this exercises the real failure path instead of a stand-in for it.
     async with AsyncSessionLocal() as db:
         org, company, document = await _create_company_and_document(db)
 
-    class _BrokenStorage:
-        async def get(self, storage_path: str) -> bytes:
-            raise FileNotFoundError(f"No such file: {storage_path}")
+    async def _boom(document):
+        raise DocumentUnreachableError(document.storage_path, "file not found on local disk")
 
-    monkeypatch.setattr(pipeline, "get_storage_service", lambda: _BrokenStorage())
+    monkeypatch.setattr(pipeline, "get_document_bytes", _boom)
 
     await pipeline.run_extraction(
         document_id=document.id,
         organization_id=org.id,
         company_id=company.id,
-        storage_path=document.storage_path,
     )
 
     async with AsyncSessionLocal() as db:
         refreshed = await DocumentRepository(db).get_by_id(document.id, organization_id=org.id)
         assert refreshed.status == DocumentStatus.FAILED
-        assert "No such file" in refreshed.error_message
+        assert "unreachable" in refreshed.error_message
+        assert document.storage_path in refreshed.error_message

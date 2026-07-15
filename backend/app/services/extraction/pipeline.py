@@ -1,6 +1,7 @@
 import logging
 import uuid
 
+from app.core.request_timing import timed_background_job
 from app.db.session import AsyncSessionLocal
 from app.models.enums import DocumentStatus
 from app.models.financial_statement import FinancialStatement
@@ -20,6 +21,29 @@ logger = logging.getLogger(__name__)
 
 
 async def run_extraction(
+    *,
+    document_id: uuid.UUID,
+    organization_id: uuid.UUID,
+    company_id: uuid.UUID,
+    generate_accuracy_report: bool = False,
+) -> None:
+    """Thin wrapper giving the actual extraction run (see _run_extraction below)
+    its own db/llm/storage/app timing breakdown, logged under job=extraction -
+    it runs as a FastAPI BackgroundTask, entirely after RequestTimingMiddleware
+    has already logged and released the triggering request's own timing (see
+    app/core/request_timing.py's _log_and_release), so without this the
+    single most expensive operation in the app would otherwise be invisible
+    to the timing instrumentation."""
+    async with timed_background_job("extraction", document_id=document_id):
+        await _run_extraction(
+            document_id=document_id,
+            organization_id=organization_id,
+            company_id=company_id,
+            generate_accuracy_report=generate_accuracy_report,
+        )
+
+
+async def _run_extraction(
     *,
     document_id: uuid.UUID,
     organization_id: uuid.UUID,

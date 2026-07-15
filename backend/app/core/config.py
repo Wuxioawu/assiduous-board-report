@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     # reset) - see app/services/email/mailer.py.
     frontend_base_url: str = "http://localhost:5173"
 
+    # Structured per-request timing log line (db/llm/storage/app breakdown) -
+    # see app/core/request_timing.py. On by default in dev; set to false to
+    # silence it (e.g. a noisy local terminal, or a prod deploy that doesn't
+    # want the extra per-request log line).
+    request_timing_enabled: bool = True
+
     storage_dir: str = "storage"
     avatar_max_size_bytes: int = 5 * 1024 * 1024
     avatar_dimension_px: int = 256

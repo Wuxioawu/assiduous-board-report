@@ -25,6 +25,7 @@ class TenantContext:
     user_id: uuid.UUID
     org_id: uuid.UUID
     role: str
+    user: User
 
 
 def _unauthorized(detail: str = "Could not validate credentials") -> HTTPException:
@@ -65,17 +66,11 @@ async def get_tenant_context(
     if user is None or not user.is_active:
         raise _unauthorized("User not found or inactive")
 
-    return TenantContext(user_id=user.id, org_id=user.organization_id, role=user.role.value)
+    return TenantContext(user_id=user.id, org_id=user.organization_id, role=user.role.value, user=user)
 
 
-async def get_current_user(
-    tenant: TenantContext = Depends(get_tenant_context),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    user = await UserRepository(db).get_by_id(tenant.user_id, organization_id=tenant.org_id)
-    if user is None or not user.is_active:
-        raise _unauthorized("User not found or inactive")
-    return user
+async def get_current_user(tenant: TenantContext = Depends(get_tenant_context)) -> User:
+    return tenant.user
 
 
 async def get_or_404[T](getter: Callable[[], Awaitable[T | None]], *, detail: str) -> T:

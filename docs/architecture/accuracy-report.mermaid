@@ -1,0 +1,54 @@
+sequenceDiagram
+    autonumber
+    actor Admin
+    box Browser
+        participant Browser as DocumentDetailView
+    end
+    box API
+        participant API as companies_router
+        participant DocsAPI as documents_router
+    end
+    box Services
+        participant AccuracySvc as build_accuracy_report
+        participant Pipeline as run_extraction
+    end
+    box DB
+        participant DB as PostgreSQL
+    end
+
+    alt Manual run (admin panel)
+        Admin->>Browser: Run Accuracy Report
+        Browser->>API: POST /companies/{id}/accuracy-report
+    else Auto after re-extract
+        Admin->>DocsAPI: POST .../documents/{id}/re-extract
+        DocsAPI->>Pipeline: run_extraction(generate_accuracy_report=true)
+        Pipeline->>AccuracySvc: build_accuracy_report (best-effort)
+    end
+
+    API->>API: require_role(OWNER, ADMIN)
+
+    alt Analyst or viewer
+        API-->>Browser: 403 Forbidden
+    else Admin authorized
+        AccuracySvc->>DB: FinancialStatementRepository.list_for_document()
+        AccuracySvc->>AccuracySvc: find_ground_truth_for_document(filename)
+
+        alt Ground-truth fixture exists
+            AccuracySvc->>AccuracySvc: Compare fields (TOLERANCE)
+            AccuracySvc-->>AccuracySvc: exact_matches / mismatches + source_excerpt
+        else No fixture
+            AccuracySvc-->>AccuracySvc: identities-only scorecard<br/>(ground_truth_available=false)
+        end
+
+        AccuracySvc->>DB: Read ValidationResult (identity rules only)
+        AccuracySvc->>DB: INSERT accuracy_report<br/>(pipeline_version=EXTRACTION_PIPELINE_VERSION)
+        API->>DB: audit_log accuracy_report_generated
+        API-->>Browser: AccuracyReportRead
+        Browser->>Browser: AccuracyPanel renders scorecard + mismatch excerpts
+    end
+
+    alt Document status not extracted
+        AccuracySvc-->>API: ExtractionNotCompleteError → 409
+    else Malformed fixture
+        AccuracySvc-->>API: MalformedGroundTruthFixtureError → 422
+    end

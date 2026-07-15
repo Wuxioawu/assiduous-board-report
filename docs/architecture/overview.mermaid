@@ -1,0 +1,70 @@
+graph TD
+    subgraph Browser["Browser (React SPA)"]
+        IngestionView["CompanyIngestionView"]
+        ReportView["ReportView"]
+        DocDetail["DocumentDetailView"]
+        AcceptInvite["AcceptInvitationView"]
+        TeamSettings["TeamSettingsView"]
+    end
+
+    subgraph API["API (FastAPI routes)"]
+        DocumentsRouter["documents.py"]
+        CompaniesRouter["companies.py"]
+        ChartsRouter["charts.py"]
+        MetricsRouter["metrics.py"]
+        OrgsRouter["organizations.py"]
+        AuthRouter["auth.py"]
+    end
+
+    subgraph Services["Services"]
+        Pipeline["run_extraction (pipeline.py)"]
+        AutoFetch["run_periodic_auto_fetch (auto_fetch.py)"]
+        ValidationSvc["run_validation (validation/service.py)"]
+        MetricsOrch["compute_and_store_metrics (metrics/orchestrator.py)"]
+        ChartRegistry["CHART_REGISTRY (charts/registry.py)"]
+        AccuracySvc["build_accuracy_report (accuracy_report.py)"]
+        StorageSvc["StorageService"]
+        EmailSvc["send_email (email/mailer.py)"]
+    end
+
+    subgraph Scheduler["Scheduler"]
+        Lifespan["main.py lifespan asyncio task"]
+    end
+
+    LLM["LLM (Anthropic API)"]
+    Storage["Storage (local disk / Supabase)"]
+    DB[("PostgreSQL")]
+
+    Lifespan -->|"① auto-fetch loop"| AutoFetch
+    IngestionView -->|"① upload / poll"| DocumentsRouter
+    TeamSettings -->|"⑤ invite"| OrgsRouter
+    AcceptInvite -->|"⑤ accept"| AuthRouter
+    ReportView -->|"③ charts + metrics"| ChartsRouter
+    ReportView --> MetricsRouter
+    DocDetail -->|"④ accuracy"| CompaniesRouter
+
+    DocumentsRouter --> StorageSvc
+    DocumentsRouter --> Pipeline
+    CompaniesRouter --> AutoFetch
+    CompaniesRouter --> AccuracySvc
+    AutoFetch --> StorageSvc
+    AutoFetch -->|"reuse ①"| Pipeline
+
+    Pipeline --> StorageSvc
+    Pipeline --> LLM
+    Pipeline --> ValidationSvc
+    Pipeline --> MetricsOrch
+    Pipeline --> DB
+    ValidationSvc --> DB
+    MetricsOrch --> DB
+    ChartsRouter --> ChartRegistry
+    MetricsRouter --> MetricsOrch
+    ChartRegistry --> DB
+    AccuracySvc --> DB
+    OrgsRouter --> EmailSvc
+    OrgsRouter --> DB
+    AuthRouter --> DB
+    StorageSvc --> Storage
+
+    classDef flow fill:#f9f9f9,stroke:#333;
+    class IngestionView,ReportView,DocDetail,AcceptInvite,TeamSettings flow;

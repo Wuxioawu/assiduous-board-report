@@ -1,0 +1,71 @@
+sequenceDiagram
+    autonumber
+    actor User
+    box Browser
+        participant Browser as CompanyIngestionView
+    end
+    box API
+        participant API as documents_router
+    end
+    box Services
+        participant StorageService
+        participant Pipeline as run_extraction
+        participant PdfParser as parse_pdf
+        participant LlmExtractor as extract_financial_data
+        participant ValidationService as run_validation
+        participant MetricsOrch as compute_and_store_metrics
+    end
+    participant LLM as Anthropic API
+    box Storage
+        participant Storage as Local / Supabase
+    end
+    box DB
+        participant DB as PostgreSQL
+    end
+
+    User->>Browser: Drop PDF
+    Browser->>API: POST /companies/{id}/documents
+    API->>StorageService: save(file)
+    StorageService->>Storage: write bytes
+    Storage-->>StorageService: storage_path
+    API->>DB: DocumentRepository.create (status=pending)
+    API->>DB: audit_log document_uploaded
+    API-->>Browser: 201 DocumentRead
+    API->>Pipeline: BackgroundTasks.add_task(run_extraction)
+
+    loop Poll every 3s while pending/processing
+        Browser->>API: GET /companies/{id}/documents
+        API-->>Browser: status pending → processing → extracted|failed
+    end
+
+    Pipeline->>DB: DocumentRepository.update_status(processing)
+    Pipeline->>Pipeline: get_document_bytes(document)
+    Pipeline->>Storage: read local path or fetch URL
+    Storage-->>Pipeline: PDF bytes
+    Pipeline->>PdfParser: parse_pdf(content)
+    PdfParser-->>Pipeline: page text[]
+    Pipeline->>LlmExtractor: extract_financial_data(pages)
+    Note over LlmExtractor,LLM: Single LLM pass — commercial-KPI pass 2: planned, not implemented
+    LlmExtractor->>LLM: messages.parse (structured taxonomy)
+    LLM-->>LlmExtractor: ExtractedLineItem[]
+    Pipeline->>DB: FinancialStatementRepository.create_many<br/>(source_excerpt, confidence_score, extracted_by=ai)
+    Pipeline->>DB: DocumentRepository.update_status(extracted)
+
+    loop Each extracted period
+        Pipeline->>ValidationService: run_validation(period)
+        ValidationService->>DB: ValidationResult rows
+        alt Identity check fails
+            ValidationService->>DB: statement.status = needs_review
+        else All checks pass
+            ValidationService->>DB: statement.status = confirmed
+        end
+        Pipeline->>MetricsOrch: compute_and_store_metrics(period_end)
+        Note over MetricsOrch: exclude_needs_review=true via FinancialStatementRepository
+        MetricsOrch->>DB: Metric rows (METRIC_REGISTRY formulas)
+    end
+
+    alt Extraction error
+        Pipeline->>DB: DocumentRepository.update_status(failed)
+    end
+
+    Note over Browser,DB: Accuracy report not auto-run on upload — manual POST or re-extract only

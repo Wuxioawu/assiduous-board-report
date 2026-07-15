@@ -5,6 +5,7 @@ import anthropic
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
+from app.core.request_timing import atimed
 from app.models.enums import PeriodType
 from app.services.extraction.pdf_parser import PageText
 from app.services.extraction.taxonomy import TAXONOMY
@@ -166,13 +167,14 @@ async def extract_financial_data(pages: list[PageText]) -> list[ExtractedLineIte
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     document_text = _render_document_text(pages)
-    response = await client.messages.parse(
-        model=settings.extraction_model,
-        max_tokens=8000,
-        system=_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": document_text}],
-        output_format=ExtractionResult,
-    )
+    async with atimed("llm"):
+        response = await client.messages.parse(
+            model=settings.extraction_model,
+            max_tokens=8000,
+            system=_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": document_text}],
+            output_format=ExtractionResult,
+        )
 
     line_items = response.parsed_output.line_items
     for item in line_items:
