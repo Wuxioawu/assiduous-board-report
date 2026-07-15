@@ -1,22 +1,21 @@
-from pathlib import Path
-
 from alembic.config import Config as AlembicConfig
 from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# services/schema_check.py -> app -> backend
-_BACKEND_DIR = Path(__file__).resolve().parents[2]
-_ALEMBIC_INI = _BACKEND_DIR / "alembic.ini"
+from app.core.config import BACKEND_DIR, get_settings
+
+_ALEMBIC_INI = BACKEND_DIR / "alembic.ini"
 
 
 def get_bundled_head_revision() -> str | None:
     """The latest migration revision bundled in the deployed codebase, read
     straight from migrations/ on disk - not the DB's applied revision (see
-    get_db_revision). Resolves alembic.ini/migrations by absolute path so this
-    works regardless of the process's current working directory."""
+    get_db_revision). Resolves alembic.ini/migrations by absolute path (see
+    BACKEND_DIR) so this works regardless of the process's current working
+    directory."""
     cfg = AlembicConfig(str(_ALEMBIC_INI))
-    cfg.set_main_option("script_location", str(_BACKEND_DIR / "migrations"))
+    cfg.set_main_option("script_location", str(BACKEND_DIR / "migrations"))
     return ScriptDirectory.from_config(cfg).get_current_head()
 
 
@@ -42,4 +41,5 @@ async def get_schema_status(db: AsyncSession) -> dict:
         "db_revision": db_revision,
         "head_revision": head_revision,
         "schema_current": db_revision is not None and db_revision == head_revision,
+        "storage_backend": get_settings().storage_provider,
     }

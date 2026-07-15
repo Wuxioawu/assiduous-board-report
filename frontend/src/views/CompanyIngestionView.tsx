@@ -279,7 +279,12 @@ export function CompanyIngestionView() {
                 {documents.map((doc) => (
                   <tr key={doc.id} className="border-t border-surface-border transition-colors hover:bg-cream/60">
                     <td className="py-2 text-navy">
-                      {doc.filename}
+                      <Link
+                        to={`/companies/${companyId}/documents/${doc.id}`}
+                        className="font-medium text-navy hover:text-coral hover:underline"
+                      >
+                        {doc.filename}
+                      </Link>
                       <AutoFetchedBadge document={doc} />
                     </td>
                     <td className={`py-2 font-medium ${STATUS_STYLES[doc.status]}`}>
@@ -318,10 +323,13 @@ export function CompanyIngestionView() {
             {documents.map((doc) => (
               <div key={doc.id} className="rounded-lg border border-surface-border p-3">
                 <div className="mb-1 flex items-start justify-between gap-2">
-                  <p className="min-w-0 flex-1 break-words text-sm font-medium text-navy">
+                  <Link
+                    to={`/companies/${companyId}/documents/${doc.id}`}
+                    className="min-w-0 flex-1 break-words text-sm font-medium text-navy hover:text-coral hover:underline"
+                  >
                     {doc.filename}
                     <AutoFetchedBadge document={doc} />
-                  </p>
+                  </Link>
                   {canEdit && (
                     <button
                       type="button"

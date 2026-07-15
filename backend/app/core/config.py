@@ -1,7 +1,18 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# core/config.py -> app -> backend. Single source of truth for repo-relative
+# paths that must resolve the same way regardless of the process's current
+# working directory (a background task, a test runner, and `uvicorn` invoked
+# from a different shell can all have different cwds) - resolved from
+# __file__, never Path.cwd(). Callers that previously computed their own
+# `Path(__file__).resolve().parents[N]` (services/schema_check.py,
+# services/accuracy_report.py) should use these instead.
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+FIXTURES_DIR = BACKEND_DIR / "tests" / "fixtures"
 
 
 class Settings(BaseSettings):

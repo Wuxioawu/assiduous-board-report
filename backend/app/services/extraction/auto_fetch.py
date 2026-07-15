@@ -143,7 +143,7 @@ class _CardInfo:
 # module doesn't need to know whether the caller is an HTTP request (which
 # defers via FastAPI BackgroundTasks) or the periodic scheduler (which just
 # fires an asyncio task directly).
-ScheduleExtraction = Callable[[uuid.UUID, uuid.UUID, uuid.UUID, str], None]
+ScheduleExtraction = Callable[[uuid.UUID, uuid.UUID, uuid.UUID], None]
 
 
 @dataclass
@@ -533,7 +533,7 @@ async def run_fetch_check(
             "Auto-fetch: scheduling LLM extraction for document %s (%r) - company %s, org %s",
             document.id, document.filename, company.id, organization_id,
         )
-        schedule_extraction(document.id, organization_id, company.id, document.storage_path)
+        schedule_extraction(document.id, organization_id, company.id)
 
     await CompanyRepository(db).update_fetch_status(
         company, checked_at=datetime.now(UTC), result=outcome.message

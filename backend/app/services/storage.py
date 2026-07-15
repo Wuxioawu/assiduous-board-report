@@ -1,10 +1,27 @@
+import asyncio
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+import httpx
 from fastapi import UploadFile
 
 from app.core.config import get_settings
+
+if TYPE_CHECKING:
+    from app.models.document import Document
+
+# Tuned for a filing-sized PDF over a normal connection, not a huge download -
+# generous enough to tolerate a slow Supabase/CDN response without hanging
+# the extraction background task indefinitely.
+_FETCH_TIMEOUT_SECONDS = 30.0
+_FETCH_MAX_ATTEMPTS = 3
+_FETCH_RETRY_BACKOFF_SECONDS = 1.0
+# Read in chunks (not response.aread() / .content) so a large file doesn't
+# require httpx to hold a second, separately-buffered full copy in memory
+# during the read - see _fetch_url_bytes.
+_FETCH_CHUNK_BYTES = 256 * 1024
 
 
 def is_remote_storage_path(storage_path: str) -> bool:
@@ -15,6 +32,94 @@ def is_remote_storage_path(storage_path: str) -> bool:
     a URL and Path(...).is_file() silently returns False for one instead of
     erroring, which would otherwise 404 a perfectly valid remote file."""
     return storage_path.startswith(("http://", "https://"))
+
+
+class DocumentUnreachableError(RuntimeError):
+    """A Document's stored file couldn't be read back, from either a local
+    disk path or a remote URL - see get_document_bytes. Callers (extraction,
+    re-extraction) catch this to record a clear, specific
+    Document.error_message ("stored file unreachable at ...: ...") instead of
+    letting a raw FileNotFoundError/httpx exception leak through - especially
+    important since passing a URL through Path()/os.path anywhere upstream
+    silently collapses "https://host/x" into "https:/host/x" (a single
+    slash), which then fails with an opaque "[Errno 2] No such file or
+    directory" naming a string that was never the real location. This
+    exception always carries the ORIGINAL, unmangled location."""
+
+    def __init__(self, location: str, reason: str):
+        self.location = location
+        self.reason = reason
+        super().__init__(f"Stored document file unreachable at {location!r}: {reason}")
+
+
+async def get_document_bytes(document: "Document") -> bytes:
+    """The one place a Document's file content is read back into memory -
+    extraction and re-extraction both go through this rather than asking
+    get_storage_service() for the CURRENTLY CONFIGURED provider's get(),
+    because a Document's storage_path can be either a local filesystem path
+    or a full URL independent of whatever STORAGE_PROVIDER says right now:
+    an environment's provider setting can change over time, or a script can
+    run against a database that was populated by a differently-configured
+    environment (e.g. production data - STORAGE_PROVIDER=supabase, uploads
+    saved as public URLs - inspected from a dev environment defaulting to
+    STORAGE_PROVIDER=local). Which kind of location THIS ONE document has is
+    decided by looking at the stored string itself, not by asking the global
+    config which backend is active.
+
+    storage_path is kept as an opaque string right up until the scheme check
+    inside is_remote_storage_path() - it must NEVER be passed through
+    Path()/os.path first (see DocumentUnreachableError's docstring for why).
+    """
+    location = document.storage_path
+    if is_remote_storage_path(location):
+        return await _fetch_url_bytes(location)
+    return _read_local_bytes(location)
+
+
+def _read_local_bytes(path: str) -> bytes:
+    local_path = Path(path)
+    if not local_path.is_file():
+        raise DocumentUnreachableError(path, "file not found on local disk")
+    try:
+        return local_path.read_bytes()
+    except OSError as exc:
+        raise DocumentUnreachableError(path, str(exc)) from exc
+
+
+async def _fetch_url_bytes(url: str) -> bytes:
+    """GETs `url` with a bounded timeout, retrying transient failures (timeouts,
+    connection errors, 5xx) up to _FETCH_MAX_ATTEMPTS times with a short
+    backoff. A 4xx response is treated as permanent (retrying a 404 or 403
+    can't ever succeed) and raises immediately. Streams the response body in
+    chunks via client.stream()/aiter_bytes() rather than a single .content
+    read, so a large filing doesn't force httpx to materialize two full
+    in-memory copies of it at once."""
+    last_error = "request failed"
+    # follow_redirects=True: some storage providers serve a download via a
+    # signed 3xx redirect rather than a direct 200 - without this, httpx
+    # returns the redirect response itself (a near-empty body) instead of
+    # following it, which would silently return the wrong bytes rather than
+    # erroring.
+    async with httpx.AsyncClient(timeout=_FETCH_TIMEOUT_SECONDS, follow_redirects=True) as client:
+        for attempt in range(1, _FETCH_MAX_ATTEMPTS + 1):
+            try:
+                async with client.stream("GET", url) as response:
+                    if 400 <= response.status_code < 500:
+                        raise DocumentUnreachableError(
+                            url, f"HTTP {response.status_code} {response.reason_phrase}"
+                        )
+                    response.raise_for_status()
+                    chunks = bytearray()
+                    async for chunk in response.aiter_bytes(_FETCH_CHUNK_BYTES):
+                        chunks.extend(chunk)
+                    return bytes(chunks)
+            except DocumentUnreachableError:
+                raise
+            except (httpx.TimeoutException, httpx.TransportError, httpx.HTTPStatusError) as exc:
+                last_error = str(exc) or exc.__class__.__name__
+                if attempt < _FETCH_MAX_ATTEMPTS:
+                    await asyncio.sleep(_FETCH_RETRY_BACKOFF_SECONDS * attempt)
+    raise DocumentUnreachableError(url, f"failed after {_FETCH_MAX_ATTEMPTS} attempts: {last_error}")
 
 
 class StorageService(ABC):

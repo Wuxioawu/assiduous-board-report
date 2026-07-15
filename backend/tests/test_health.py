@@ -27,6 +27,20 @@ async def test_health_config_reports_schema_current_against_the_real_migrated_db
     assert body["schema_current"] is True
     assert body["db_revision"] == body["head_revision"]
     assert body["head_revision"] is not None
+    assert body["storage_backend"] == "local"
+
+
+async def test_health_config_reports_configured_storage_backend(client: AsyncClient, monkeypatch):
+    from app.core.config import Settings
+
+    monkeypatch.setattr(
+        "app.services.schema_check.get_settings",
+        lambda: Settings(storage_provider="supabase"),
+    )
+
+    response = await client.get("/api/v1/health/config")
+
+    assert response.json()["storage_backend"] == "supabase"
 
 
 async def test_get_bundled_head_revision_matches_the_newest_migration_file():

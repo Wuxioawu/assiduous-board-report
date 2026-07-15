@@ -6,12 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import TenantContext, create_audit_log, get_or_404, get_tenant_context, require_role
 from app.db.session import get_db
-from app.models.enums import UserRole
+from app.models.enums import DocumentStatus, UserRole
+from app.repositories.accuracy_report import AccuracyReportRepository
 from app.repositories.company import CompanyRepository
 from app.repositories.document import DocumentRepository
 from app.repositories.financial_statement import FinancialStatementRepository
 from app.repositories.insight import InsightRepository
 from app.repositories.metric import MetricRepository
+from app.schemas.accuracy_report import AccuracyReportRead
 from app.schemas.document import DocumentRead
 from app.services.extraction.pipeline import run_extraction
 from app.services.metrics.orchestrator import compute_and_store_metrics
@@ -81,10 +83,119 @@ async def upload_document(
         document_id=document.id,
         organization_id=tenant.org_id,
         company_id=company_id,
-        storage_path=storage_path,
     )
 
     return DocumentRead.model_validate(document)
+
+
+@router.post("/{document_id}/re-extract", response_model=DocumentRead)
+async def re_extract_document(
+    company_id: uuid.UUID,
+    document_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    tenant: TenantContext = Depends(require_role(UserRole.OWNER, UserRole.ADMIN, UserRole.ANALYST)),
+    db: AsyncSession = Depends(get_db),
+) -> DocumentRead:
+    """Re-runs extraction against the same already-uploaded file (e.g. after an
+    extraction prompt change, or to refresh the Accuracy panel - see
+    services/accuracy_report.py). Clears this document's existing
+    FinancialStatement rows first (cascade-deleting their ValidationResult
+    rows) so re-extraction can't leave duplicate line items behind, then
+    mirrors delete_document's downstream cleanup for any period this document
+    was the sole contributor to, before kicking off the same run_extraction
+    background task an upload uses."""
+    await get_or_404(
+        lambda: CompanyRepository(db).get_by_id(company_id, organization_id=tenant.org_id),
+        detail="Company not found",
+    )
+
+    doc_repo = DocumentRepository(db)
+
+    async def _get_document_for_company():
+        doc = await doc_repo.get_by_id(document_id, organization_id=tenant.org_id)
+        return doc if doc is not None and doc.company_id == company_id else None
+
+    document = await get_or_404(_get_document_for_company, detail="Document not found")
+
+    fs_repo = FinancialStatementRepository(db)
+    affected_statements = await fs_repo.list_for_document(
+        document_id=document_id, organization_id=tenant.org_id
+    )
+    affected_periods = {(s.period_start, s.period_end) for s in affected_statements}
+
+    await fs_repo.delete_for_document(document_id=document_id, organization_id=tenant.org_id)
+
+    if affected_periods:
+        remaining_period_ends = set(
+            await fs_repo.list_period_ends(company_id=company_id, organization_id=tenant.org_id)
+        )
+        metric_repo = MetricRepository(db)
+        insight_repo = InsightRepository(db)
+        for period_start, period_end in affected_periods:
+            if period_end in remaining_period_ends:
+                # Another document still contributes data for this period -
+                # recompute from what remains rather than leaving it stale.
+                await compute_and_store_metrics(
+                    db, organization_id=tenant.org_id, company_id=company_id, period_end=period_end
+                )
+            else:
+                await metric_repo.delete_for_period(
+                    company_id=company_id,
+                    organization_id=tenant.org_id,
+                    period_start=period_start,
+                    period_end=period_end,
+                )
+            await insight_repo.delete_for_period_audience(
+                company_id=company_id, organization_id=tenant.org_id, period_end=period_end
+            )
+
+    document.status = DocumentStatus.PENDING
+    document.error_message = None
+    await create_audit_log(
+        db,
+        tenant,
+        action="document_re_extracted",
+        resource_type="document",
+        resource_id=document_id,
+        extra_data={"filename": document.filename},
+    )
+    await db.commit()
+    await db.refresh(document)
+
+    background_tasks.add_task(
+        run_extraction,
+        document_id=document.id,
+        organization_id=tenant.org_id,
+        company_id=company_id,
+        generate_accuracy_report=True,
+    )
+
+    return DocumentRead.model_validate(document)
+
+
+@router.get("/{document_id}/accuracy-report", response_model=AccuracyReportRead | None)
+async def get_latest_accuracy_report(
+    company_id: uuid.UUID,
+    document_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_role(UserRole.OWNER, UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+) -> AccuracyReportRead | None:
+    await get_or_404(
+        lambda: CompanyRepository(db).get_by_id(company_id, organization_id=tenant.org_id),
+        detail="Company not found",
+    )
+    doc_repo = DocumentRepository(db)
+
+    async def _get_document_for_company():
+        doc = await doc_repo.get_by_id(document_id, organization_id=tenant.org_id)
+        return doc if doc is not None and doc.company_id == company_id else None
+
+    await get_or_404(_get_document_for_company, detail="Document not found")
+
+    report = await AccuracyReportRepository(db).get_latest_for_document(
+        document_id=document_id, organization_id=tenant.org_id
+    )
+    return AccuracyReportRead.model_validate(report) if report is not None else None
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

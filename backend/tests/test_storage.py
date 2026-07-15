@@ -1,11 +1,19 @@
 import io
+import types
 import uuid
 from pathlib import Path
 
+import httpx
 import pytest
 from fastapi import UploadFile
 
-from app.services.storage import LocalStorageService, get_storage_service, is_remote_storage_path
+from app.services.storage import (
+    DocumentUnreachableError,
+    LocalStorageService,
+    get_document_bytes,
+    get_storage_service,
+    is_remote_storage_path,
+)
 
 
 def _upload_file(content: bytes, filename: str) -> UploadFile:
@@ -212,3 +220,150 @@ class TestGetStorageServiceProviderSwitch:
 
         with pytest.raises(StorageSupabaseError):
             get_storage_service()
+
+
+def _document(storage_path: str):
+    # get_document_bytes only ever reads document.storage_path - a plain
+    # namespace stands in for the real Document model without a DB.
+    return types.SimpleNamespace(storage_path=storage_path)
+
+
+_RealAsyncClient = httpx.AsyncClient
+
+
+def _mock_async_client(handler, monkeypatch):
+    # storage.py builds its own httpx.AsyncClient internally rather than
+    # accepting one, so tests swap the module's AsyncClient for one wired to
+    # an httpx.MockTransport instead of hitting the network. Must bind to the
+    # real class captured above - patching httpx.AsyncClient in place means a
+    # factory that calls httpx.AsyncClient(...) would just call itself.
+    def factory(*, timeout, follow_redirects):
+        return _RealAsyncClient(transport=httpx.MockTransport(handler), follow_redirects=follow_redirects)
+
+    monkeypatch.setattr("app.services.storage.httpx.AsyncClient", factory)
+
+
+def _no_op_sleep(monkeypatch):
+    # Retry backoff really sleeps (1s, 2s, ...) - not worth paying for in tests.
+    async def _sleep(_seconds):
+        return None
+
+    monkeypatch.setattr("app.services.storage.asyncio.sleep", _sleep)
+
+
+class TestGetDocumentBytesLocal:
+    async def test_reads_local_path(self, tmp_path):
+        path = tmp_path / "filing.pdf"
+        path.write_bytes(b"local-bytes")
+
+        content = await get_document_bytes(_document(str(path)))
+
+        assert content == b"local-bytes"
+
+    async def test_missing_local_file_raises_document_unreachable_error(self, tmp_path):
+        missing = tmp_path / "never-existed.pdf"
+
+        with pytest.raises(DocumentUnreachableError) as exc_info:
+            await get_document_bytes(_document(str(missing)))
+
+        assert exc_info.value.location == str(missing)
+        assert "not found" in exc_info.value.reason
+
+
+class TestGetDocumentBytesRemote:
+    async def test_fetches_url_over_http(self, monkeypatch):
+        url = "https://xyzcompany.supabase.co/storage/v1/object/public/documents/org/company/file.pdf"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert str(request.url) == url
+            return httpx.Response(200, content=b"remote-bytes")
+
+        _mock_async_client(handler, monkeypatch)
+
+        content = await get_document_bytes(_document(url))
+
+        assert content == b"remote-bytes"
+
+    async def test_never_mangles_the_url_through_path_normalization(self, monkeypatch):
+        # Regression test for the bug this fixes: passing a URL through
+        # Path()/os.path anywhere collapses "https://host/x" into
+        # "https:/host/x" (single slash), which then 404s or errors with a
+        # confusing Errno 2 naming a string that was never the real location.
+        url = "https://xyzcompany.supabase.co/storage/v1/object/public/documents/org/company/file.pdf"
+        seen_urls = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen_urls.append(str(request.url))
+            return httpx.Response(200, content=b"remote-bytes")
+
+        _mock_async_client(handler, monkeypatch)
+
+        await get_document_bytes(_document(url))
+
+        assert seen_urls == [url]
+
+    async def test_follows_redirects(self, monkeypatch):
+        origin = "https://xyzcompany.supabase.co/storage/v1/object/sign/documents/file.pdf"
+        final = "https://cdn.example.com/signed/file.pdf?token=abc"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if str(request.url) == origin:
+                return httpx.Response(302, headers={"location": final})
+            return httpx.Response(200, content=b"redirected-bytes")
+
+        _mock_async_client(handler, monkeypatch)
+
+        content = await get_document_bytes(_document(origin))
+
+        assert content == b"redirected-bytes"
+
+    async def test_4xx_raises_document_unreachable_error_without_retrying(self, monkeypatch):
+        url = "https://xyzcompany.supabase.co/storage/v1/object/public/documents/missing.pdf"
+        attempts = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            attempts.append(request)
+            return httpx.Response(404, content=b"not found")
+
+        _mock_async_client(handler, monkeypatch)
+        _no_op_sleep(monkeypatch)
+
+        with pytest.raises(DocumentUnreachableError) as exc_info:
+            await get_document_bytes(_document(url))
+
+        assert len(attempts) == 1
+        assert exc_info.value.location == url
+        assert "404" in exc_info.value.reason
+
+    async def test_transient_5xx_is_retried_then_succeeds(self, monkeypatch):
+        url = "https://xyzcompany.supabase.co/storage/v1/object/public/documents/file.pdf"
+        attempts = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            attempts.append(request)
+            if len(attempts) < 2:
+                return httpx.Response(503)
+            return httpx.Response(200, content=b"remote-bytes")
+
+        _mock_async_client(handler, monkeypatch)
+        _no_op_sleep(monkeypatch)
+
+        content = await get_document_bytes(_document(url))
+
+        assert content == b"remote-bytes"
+        assert len(attempts) == 2
+
+    async def test_persistent_failure_raises_document_unreachable_error_naming_the_url(self, monkeypatch):
+        url = "https://dead-host.example.com/storage/v1/object/public/documents/file.pdf"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("connection refused", request=request)
+
+        _mock_async_client(handler, monkeypatch)
+        _no_op_sleep(monkeypatch)
+
+        with pytest.raises(DocumentUnreachableError) as exc_info:
+            await get_document_bytes(_document(url))
+
+        assert exc_info.value.location == url
+        assert url in str(exc_info.value)

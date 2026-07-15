@@ -5,7 +5,19 @@ __pycache__
 .env
 storage/
 .git
-tests/
+# tests/ is excluded, EXCEPT the ground-truth fixtures the Accuracy Report
+# feature reads at runtime (see services/accuracy_report.py) - not the PDFs
+# or test .py files alongside them, just the *_ground_truth.json comparison
+# data. Docker's dockerignore matcher prunes a whole excluded directory
+# before evaluating negations inside it, so this has to exclude directory
+# CONTENTS one level at a time (tests/*, then tests/fixtures/*) rather than
+# excluding "tests" as a single unit, for the negations below to actually
+# take effect - see the .dockerignore verification note in the PR this
+# feature shipped in if this ever silently stops working.
+tests/*
+!tests/fixtures/
+tests/fixtures/*
+!tests/fixtures/*_ground_truth.json
 .pytest_cache
 .ruff_cache
 .mypy_cache

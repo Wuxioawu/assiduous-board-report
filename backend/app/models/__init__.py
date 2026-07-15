@@ -1,4 +1,5 @@
 from app.db.base import Base
+from app.models.accuracy_report import AccuracyReport
 from app.models.audit_log import AuditLog
 from app.models.budget import Budget
 from app.models.comment import Comment
@@ -15,6 +16,7 @@ from app.models.validation_result import ValidationResult
 
 __all__ = [
     "Base",
+    "AccuracyReport",
     "AuditLog",
     "Budget",
     "Comment",

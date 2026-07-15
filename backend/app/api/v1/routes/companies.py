@@ -12,6 +12,7 @@ from app.models.enums import PeriodType, UserRole
 from app.repositories.company import CompanyRepository
 from app.repositories.document import DocumentRepository
 from app.repositories.financial_statement import FinancialStatementRepository
+from app.schemas.accuracy_report import AccuracyReportRead, AccuracyReportRequest
 from app.schemas.company import (
     CompanyCreate,
     CompanyFetchResult,
@@ -19,6 +20,11 @@ from app.schemas.company import (
     CompanyPeriod,
     CompanyRead,
     CompanyUpdate,
+)
+from app.services.accuracy_report import (
+    ExtractionNotCompleteError,
+    MalformedGroundTruthFixtureError,
+    build_accuracy_report,
 )
 from app.services.avatar import ALLOWED_AVATAR_CONTENT_TYPES, process_avatar_image
 from app.services.extraction.auto_fetch import run_fetch_check
@@ -247,14 +253,13 @@ async def fetch_company_now(
         )
 
     def schedule_extraction(
-        document_id: uuid.UUID, organization_id: uuid.UUID, comp_id: uuid.UUID, storage_path: str
+        document_id: uuid.UUID, organization_id: uuid.UUID, comp_id: uuid.UUID
     ) -> None:
         background_tasks.add_task(
             run_extraction,
             document_id=document_id,
             organization_id=organization_id,
             company_id=comp_id,
-            storage_path=storage_path,
         )
 
     outcome = await run_fetch_check(
@@ -281,6 +286,57 @@ async def fetch_company_now(
         last_fetch_checked_at=company.last_fetch_checked_at,
         auto_fetch_enabled=company.auto_fetch_enabled,
     )
+
+
+@router.post("/{company_id}/accuracy-report", response_model=AccuracyReportRead)
+async def create_accuracy_report(
+    company_id: uuid.UUID,
+    payload: AccuracyReportRequest,
+    tenant: TenantContext = Depends(require_role(UserRole.OWNER, UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+) -> AccuracyReportRead:
+    """Admin-only: scores one document's current extraction output against its
+    ground-truth fixture (if any) and its accounting-identity check results
+    (always) - see services/accuracy_report.py. Read-only over the document's
+    data (doesn't re-run extraction or validation); the re-extract endpoint
+    (routes/documents.py) triggers this automatically once a fresh extraction
+    completes, this endpoint is for re-scoring the same extracted data on
+    demand without a new extraction run."""
+    await get_or_404(
+        lambda: CompanyRepository(db).get_by_id(company_id, organization_id=tenant.org_id),
+        detail="Company not found",
+    )
+
+    async def _get_document_for_company():
+        doc = await DocumentRepository(db).get_by_id(payload.document_id, organization_id=tenant.org_id)
+        return doc if doc is not None and doc.company_id == company_id else None
+
+    document = await get_or_404(_get_document_for_company, detail="Document not found")
+
+    try:
+        report = await build_accuracy_report(
+            db, organization_id=tenant.org_id, company_id=company_id, document=document
+        )
+    except ExtractionNotCompleteError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except MalformedGroundTruthFixtureError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+
+    await create_audit_log(
+        db,
+        tenant,
+        action="accuracy_report_generated",
+        resource_type="document",
+        resource_id=document.id,
+        extra_data={
+            "fields_compared": report.scorecard["fields_compared"],
+            "exact_matches": report.scorecard["exact_matches"],
+            "identity_checks_passed": report.scorecard["identity_checks_passed"],
+            "identity_checks_total": report.scorecard["identity_checks_total"],
+        },
+    )
+    await db.commit()
+    return AccuracyReportRead.model_validate(report)
 
 
 @router.get("/{company_id}/periods", response_model=list[CompanyPeriod])

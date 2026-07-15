@@ -17,6 +17,7 @@ import { CompanyFinancialDataView } from "@/views/CompanyFinancialDataView";
 import { CompanyIngestionView } from "@/views/CompanyIngestionView";
 import { CompanyListView } from "@/views/CompanyListView";
 import { CreateCompanyView } from "@/views/CreateCompanyView";
+import { DocumentDetailView } from "@/views/DocumentDetailView";
 import { ForgotPasswordView } from "@/views/ForgotPasswordView";
 import { LoginView } from "@/views/LoginView";
 import { RegisterView } from "@/views/RegisterView";
@@ -88,6 +89,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <CompanyFinancialDataView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/companies/:companyId/documents/:documentId"
+            element={
+              <ProtectedRoute>
+                <DocumentDetailView />
               </ProtectedRoute>
             }
           />

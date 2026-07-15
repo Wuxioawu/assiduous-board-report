@@ -7,12 +7,13 @@ from app.models.financial_statement import FinancialStatement
 from app.repositories.company import CompanyRepository
 from app.repositories.document import DocumentRepository
 from app.repositories.financial_statement import FinancialStatementRepository
+from app.services.accuracy_report import build_accuracy_report
 from app.services.extraction.currency import detect_reporting_currency
 from app.services.extraction.llm_extractor import extract_financial_data, normalize_to_full_units
 from app.services.extraction.pdf_parser import parse_pdf
 from app.services.metrics.fiscal_periods import classify_period_type
 from app.services.metrics.orchestrator import compute_and_store_metrics
-from app.services.storage import get_storage_service
+from app.services.storage import DocumentUnreachableError, get_document_bytes
 from app.services.validation.service import run_validation
 
 logger = logging.getLogger(__name__)
@@ -23,23 +24,36 @@ async def run_extraction(
     document_id: uuid.UUID,
     organization_id: uuid.UUID,
     company_id: uuid.UUID,
-    storage_path: str,
+    generate_accuracy_report: bool = False,
 ) -> None:
     """Runs as a FastAPI BackgroundTask after the upload response has been sent,
     so it opens its own DB session rather than reusing the request-scoped one -
-    and, for the same reason, builds its own StorageService via the factory
-    rather than through Depends(), which only exists for the request path."""
+    and, for the same reason, reads the document's file via get_document_bytes()
+    (which dispatches on the stored path/URL itself, not on the process's
+    current STORAGE_PROVIDER config - see services/storage.py) rather than
+    through Depends(), which only exists for the request path. Takes no
+    storage_path parameter: the freshly-fetched Document row (below) already
+    carries it, and that's the one source of truth get_document_bytes() reads.
+
+    generate_accuracy_report=True is set only by the re-extract path (see
+    routes/documents.py's re_extract_document) - a fresh upload has no reason
+    to score itself against ground truth on every single ingestion, but a
+    demo/admin explicitly re-running extraction wants the Accuracy panel to
+    reflect the new run immediately rather than showing a stale prior scorecard."""
     async with AsyncSessionLocal() as db:
         doc_repo = DocumentRepository(db)
 
-        await doc_repo.update_status(
+        document = await doc_repo.update_status(
             document_id, organization_id=organization_id, status=DocumentStatus.PROCESSING
         )
         await db.commit()
 
         try:
-            storage = get_storage_service()
-            content = await storage.get(storage_path)
+            if document is None:
+                raise DocumentUnreachableError(
+                    "(unknown - document row not found)", "document not found for this organization"
+                )
+            content = await get_document_bytes(document)
             pages = parse_pdf(content)
             line_items = await extract_financial_data(pages)
 
@@ -93,7 +107,7 @@ async def run_extraction(
                 if company is not None:
                     await CompanyRepository(db).update_currency(company, currency=detected_currency)
 
-            await doc_repo.update_status(
+            document = await doc_repo.update_status(
                 document_id, organization_id=organization_id, status=DocumentStatus.EXTRACTED
             )
             await db.commit()
@@ -118,6 +132,24 @@ async def run_extraction(
                 await compute_and_store_metrics(
                     db, organization_id=organization_id, company_id=company_id, period_end=period_end
                 )
+
+            if generate_accuracy_report and document is not None:
+                # Best-effort: a broken ground-truth fixture (or any other
+                # accuracy-report failure) must never flip an otherwise-
+                # successful extraction to FAILED - that status/error_message
+                # belongs to extraction itself, not to this bonus scoring
+                # step. A user can always retry generation explicitly via
+                # POST .../accuracy-report, which surfaces the real error.
+                try:
+                    await build_accuracy_report(
+                        db, organization_id=organization_id, company_id=company_id, document=document
+                    )
+                    await db.commit()
+                except Exception:  # noqa: BLE001 - see comment above
+                    logger.exception(
+                        "Accuracy report generation failed after re-extraction of document %s", document_id
+                    )
+                    await db.rollback()
         except Exception as exc:  # noqa: BLE001 - extraction failures must never crash the background task
             logger.exception("Extraction failed for document %s", document_id)
             await db.rollback()

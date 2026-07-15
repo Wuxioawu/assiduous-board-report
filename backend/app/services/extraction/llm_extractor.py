@@ -9,6 +9,12 @@ from app.models.enums import PeriodType
 from app.services.extraction.pdf_parser import PageText
 from app.services.extraction.taxonomy import TAXONOMY
 
+# Bump manually whenever the extraction prompt/schema below changes in a way
+# that could shift extracted values - stamped onto every AccuracyReport (see
+# services/accuracy_report.py) so a mismatch spike can be correlated with a
+# specific prompt change instead of looking like unexplained drift.
+EXTRACTION_PIPELINE_VERSION = "v1"
+
 
 class UnitScale(str, enum.Enum):
     """The scale a figure appears in within the SOURCE document, before any
