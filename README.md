@@ -416,7 +416,7 @@ sequenceDiagram
     AuthAPI-->>RecipientUI: JWT + UserRead
 
     RecipientUI->>RecipientUI: navigate(/companies)
-    Note over RecipientUI: Viewer lands on company list; report defaults to ?audience=management when opened
+   Note over RecipientUI: Viewer lands on /companies — report opens with default audience=management
 ```
 
 ---
