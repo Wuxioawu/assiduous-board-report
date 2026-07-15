@@ -41,7 +41,7 @@ sequenceDiagram
         end
 
         AccuracySvc->>DB: Read ValidationResult (identity rules only)
-        AccuracySvc->>DB: INSERT accuracy_report<br/>(pipeline_version, scorecard)
+        AccuracySvc->>DB: INSERT accuracy_report<br/>(pipeline_version=EXTRACTION_PIPELINE_VERSION)
         API->>DB: audit_log accuracy_report_generated
         API-->>Browser: AccuracyReportRead
         Browser->>Browser: AccuracyPanel renders scorecard + mismatch excerpts

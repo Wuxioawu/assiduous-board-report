@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -8,6 +9,7 @@ import httpx
 from fastapi import UploadFile
 
 from app.core.config import get_settings
+from app.core.request_timing import atimed
 
 if TYPE_CHECKING:
     from app.models.document import Document
@@ -71,9 +73,10 @@ async def get_document_bytes(document: "Document") -> bytes:
     Path()/os.path first (see DocumentUnreachableError's docstring for why).
     """
     location = document.storage_path
-    if is_remote_storage_path(location):
-        return await _fetch_url_bytes(location)
-    return _read_local_bytes(location)
+    async with atimed("storage"):
+        if is_remote_storage_path(location):
+            return await _fetch_url_bytes(location)
+        return _read_local_bytes(location)
 
 
 def _read_local_bytes(path: str) -> bytes:
@@ -216,6 +219,24 @@ class LocalStorageService(StorageService):
         return str(target_path)
 
 
+def _instrument_storage_service(service: StorageService) -> StorageService:
+    """Wraps every public StorageService operation on this instance in
+    atimed("storage") - done once here, generically over
+    StorageService.__abstractmethods__, rather than repeating an
+    `async with atimed(...)` line inside every Local/Supabase method, so a
+    future storage backend gets timed for free just by implementing the ABC."""
+    for name in StorageService.__abstractmethods__:
+        original = getattr(service, name)
+
+        @functools.wraps(original)
+        async def timed_method(*args, _original=original, **kwargs):
+            async with atimed("storage"):
+                return await _original(*args, **kwargs)
+
+        setattr(service, name, timed_method)
+    return service
+
+
 def get_storage_service() -> StorageService:
     settings = get_settings()
     if settings.storage_provider == "supabase":
@@ -223,9 +244,11 @@ def get_storage_service() -> StorageService:
         # storage_supabase.py imports StorageService from this module.
         from app.services.document.storage_supabase import StorageSupabase
 
-        return StorageSupabase(
-            supabase_url=settings.supabase_url,
-            supabase_service_key=settings.supabase_service_key,
-            bucket=settings.supabase_storage_bucket,
+        return _instrument_storage_service(
+            StorageSupabase(
+                supabase_url=settings.supabase_url,
+                supabase_service_key=settings.supabase_service_key,
+                bucket=settings.supabase_storage_bucket,
+            )
         )
-    return LocalStorageService(base_dir=get_settings().storage_dir)
+    return _instrument_storage_service(LocalStorageService(base_dir=get_settings().storage_dir))

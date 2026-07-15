@@ -11,6 +11,7 @@ graph TD
         DocumentsRouter["documents.py"]
         CompaniesRouter["companies.py"]
         ChartsRouter["charts.py"]
+        MetricsRouter["metrics.py"]
         OrgsRouter["organizations.py"]
         AuthRouter["auth.py"]
     end
@@ -38,7 +39,8 @@ graph TD
     IngestionView -->|"① upload / poll"| DocumentsRouter
     TeamSettings -->|"⑤ invite"| OrgsRouter
     AcceptInvite -->|"⑤ accept"| AuthRouter
-    ReportView -->|"③ charts"| ChartsRouter
+    ReportView -->|"③ charts + metrics"| ChartsRouter
+    ReportView --> MetricsRouter
     DocDetail -->|"④ accuracy"| CompaniesRouter
 
     DocumentsRouter --> StorageSvc
@@ -56,6 +58,7 @@ graph TD
     ValidationSvc --> DB
     MetricsOrch --> DB
     ChartsRouter --> ChartRegistry
+    MetricsRouter --> MetricsOrch
     ChartRegistry --> DB
     AccuracySvc --> DB
     OrgsRouter --> EmailSvc

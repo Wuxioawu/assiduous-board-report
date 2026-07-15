@@ -5,40 +5,46 @@ sequenceDiagram
         participant Browser as ReportView + ProtectedRoute
     end
     box API
-        participant API as charts_router
+        participant ChartsAPI as charts_router
+        participant MetricsAPI as metrics_router
         participant Auth as get_tenant_context
     end
     box Services
         participant ChartRegistry as CHART_REGISTRY
+        participant MetricsOrch as get_or_compute_metrics
     end
     box DB
         participant DB as PostgreSQL
     end
 
     Viewer->>Browser: Login
-    Browser->>API: POST /auth/login
-    API-->>Browser: JWT (org_id, role)
+    Browser->>Auth: POST /auth/login
+    Auth-->>Browser: JWT (org_id, role)
     Viewer->>Browser: Open /companies/{id}/report?audience=equity
     Browser->>Browser: ProtectedRoute (redirect /login if no token)
 
-    Browser->>API: GET /companies/{id}/charts?audience=equity
-    API->>Auth: decode JWT + live role from UserRepository
+    Browser->>ChartsAPI: GET /companies/{id}/charts
+    ChartsAPI->>Auth: decode JWT + live role from UserRepository
 
     alt Missing or invalid token
         Auth-->>Browser: 401 Unauthorized
     else Authenticated (viewer role allowed)
-        Auth-->>API: TenantContext
-        API->>DB: CompanyRepository.get_by_id (tenant-scoped)
-        API->>DB: FinancialStatementRepository.list_for_company<br/>(exclude_needs_review=true)
-        API->>ChartRegistry: definition.build(ctx) per chart
-        ChartRegistry-->>API: ChartConfig[] with source_refs
-        API-->>Browser: 200 ChartConfig[]
+        Auth-->>ChartsAPI: TenantContext
+        ChartsAPI->>DB: CompanyRepository.get_by_id (tenant-scoped)
+        ChartsAPI->>DB: FinancialStatementRepository.list_for_company<br/>(exclude_needs_review=true)
+        ChartsAPI->>ChartRegistry: definition.build(ctx) per chart
+        ChartRegistry-->>ChartsAPI: ChartConfig[] with source_refs
+        ChartsAPI-->>Browser: 200 ChartConfig[] (all audiences)
     end
 
-    Browser->>Browser: AudienceSwitcher filters ?audience=
-    Browser->>Browser: MetricCard click "Show source"
+    Browser->>Browser: Filter charts by ?audience= via AudienceSections
+    Browser->>MetricsAPI: GET /metrics?audience=equity&period=…
+    MetricsAPI->>MetricsOrch: cached Metric rows (confirmed statements only)
+    MetricsAPI-->>Browser: MetricsResponse
+
+    Browser->>Browser: MetricCard / GenericChartCard click "Show source"
     Note over Browser: SourceProvenanceHint displays<br/>source_excerpt + source_page from source_refs
 
     alt Viewer attempts admin-only action (e.g. POST accuracy-report)
-        API-->>Browser: 403 Forbidden (require_role)
+        ChartsAPI-->>Browser: 403 Forbidden (require_role)
     end

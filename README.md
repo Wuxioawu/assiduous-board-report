@@ -56,6 +56,7 @@ graph TD
         DocumentsRouter["documents.py"]
         CompaniesRouter["companies.py"]
         ChartsRouter["charts.py"]
+        MetricsRouter["metrics.py"]
         OrgsRouter["organizations.py"]
         AuthRouter["auth.py"]
     end
@@ -83,7 +84,8 @@ graph TD
     IngestionView -->|"① upload / poll"| DocumentsRouter
     TeamSettings -->|"⑤ invite"| OrgsRouter
     AcceptInvite -->|"⑤ accept"| AuthRouter
-    ReportView -->|"③ charts"| ChartsRouter
+    ReportView -->|"③ charts + metrics"| ChartsRouter
+    ReportView --> MetricsRouter
     DocDetail -->|"④ accuracy"| CompaniesRouter
 
     DocumentsRouter --> StorageSvc
@@ -101,6 +103,7 @@ graph TD
     ValidationSvc --> DB
     MetricsOrch --> DB
     ChartsRouter --> ChartRegistry
+    MetricsRouter --> MetricsOrch
     ChartRegistry --> DB
     AccuracySvc --> DB
     OrgsRouter --> EmailSvc
@@ -155,16 +158,16 @@ sequenceDiagram
     end
 
     Pipeline->>DB: DocumentRepository.update_status(processing)
-    Pipeline->>StorageService: get_document_bytes(document)
-    StorageService->>Storage: read file / fetch URL
+    Pipeline->>Pipeline: get_document_bytes(document)
+    Pipeline->>Storage: read local path or fetch URL
     Storage-->>Pipeline: PDF bytes
     Pipeline->>PdfParser: parse_pdf(content)
     PdfParser-->>Pipeline: page text[]
     Pipeline->>LlmExtractor: extract_financial_data(pages)
-    Note over LlmExtractor,LLM: Single LLM pass (no commercial-KPI pass 2)
+    Note over LlmExtractor,LLM: Single LLM pass — commercial-KPI pass 2: planned, not implemented
     LlmExtractor->>LLM: messages.parse (structured taxonomy)
     LLM-->>LlmExtractor: ExtractedLineItem[]
-    Pipeline->>DB: FinancialStatementRepository.create_many<br/>(source_excerpt, confidence_score)
+    Pipeline->>DB: FinancialStatementRepository.create_many<br/>(source_excerpt, confidence_score, extracted_by=ai)
     Pipeline->>DB: DocumentRepository.update_status(extracted)
 
     loop Each extracted period
@@ -176,14 +179,15 @@ sequenceDiagram
             ValidationService->>DB: statement.status = confirmed
         end
         Pipeline->>MetricsOrch: compute_and_store_metrics(period_end)
-        MetricsOrch->>DB: Metric rows (confirmed statements only)
+        Note over MetricsOrch: exclude_needs_review=true via FinancialStatementRepository
+        MetricsOrch->>DB: Metric rows (METRIC_REGISTRY formulas)
     end
 
     alt Extraction error
         Pipeline->>DB: DocumentRepository.update_status(failed)
     end
 
-    Note over Browser,DB: Accuracy report is manual (POST) or auto on re-extract only — not on fresh upload
+    Note over Browser,DB: Accuracy report not auto-run on upload — manual POST or re-extract only
 ```
 
 ### 2. Scheduled IR-site ingestion
@@ -209,7 +213,7 @@ sequenceDiagram
         participant Storage as Local / Supabase
     end
 
-    loop Every auto_fetch_interval_hours
+    loop Every auto_fetch_interval_hours (main.py lifespan)
         Scheduler->>DB: CompanyRepository.list_auto_fetch_enabled()
         DB-->>Scheduler: companies[]
 
@@ -220,7 +224,7 @@ sequenceDiagram
 
             AutoFetch->>Playwright: goto(investor_relations_url)
             Playwright-->>AutoFetch: IR page DOM
-            AutoFetch->>Playwright: _discover_cards (results + regulatory-news)
+            AutoFetch->>Playwright: _discover_cards (#results + #regulatory-news)
 
             loop Each new financial candidate
                 alt Title already ingested
@@ -234,7 +238,7 @@ sequenceDiagram
                     StorageService->>Storage: write bytes
                     AutoFetch->>DB: DocumentRepository.create<br/>(source_type=auto_fetched, status=pending)
                     AutoFetch->>DB: audit_log document_auto_fetched
-                    AutoFetch->>Ingestion: schedule_extraction(document_id)
+                    AutoFetch->>Ingestion: asyncio.create_task(run_extraction)
                     Note over Ingestion: See document-ingestion.mermaid<br/>(parse → LLM → validate → metrics)
                 end
             end
@@ -246,7 +250,7 @@ sequenceDiagram
 
 ### 3. Role-based report access
 
-Authenticated users fetch audience-filtered chart configs built only from confirmed statements; provenance excerpts surface on click.
+Authenticated users fetch chart configs and cached metrics built only from confirmed statements; provenance excerpts surface on click.
 
 ```mermaid
 sequenceDiagram
@@ -256,42 +260,48 @@ sequenceDiagram
         participant Browser as ReportView + ProtectedRoute
     end
     box API
-        participant API as charts_router
+        participant ChartsAPI as charts_router
+        participant MetricsAPI as metrics_router
         participant Auth as get_tenant_context
     end
     box Services
         participant ChartRegistry as CHART_REGISTRY
+        participant MetricsOrch as get_or_compute_metrics
     end
     box DB
         participant DB as PostgreSQL
     end
 
     Viewer->>Browser: Login
-    Browser->>API: POST /auth/login
-    API-->>Browser: JWT (org_id, role)
+    Browser->>Auth: POST /auth/login
+    Auth-->>Browser: JWT (org_id, role)
     Viewer->>Browser: Open /companies/{id}/report?audience=equity
     Browser->>Browser: ProtectedRoute (redirect /login if no token)
 
-    Browser->>API: GET /companies/{id}/charts?audience=equity
-    API->>Auth: decode JWT + live role from UserRepository
+    Browser->>ChartsAPI: GET /companies/{id}/charts
+    ChartsAPI->>Auth: decode JWT + live role from UserRepository
 
     alt Missing or invalid token
         Auth-->>Browser: 401 Unauthorized
     else Authenticated (viewer role allowed)
-        Auth-->>API: TenantContext
-        API->>DB: CompanyRepository.get_by_id (tenant-scoped)
-        API->>DB: FinancialStatementRepository.list_for_company<br/>(exclude_needs_review=true)
-        API->>ChartRegistry: definition.build(ctx) per chart
-        ChartRegistry-->>API: ChartConfig[] with source_refs
-        API-->>Browser: 200 ChartConfig[]
+        Auth-->>ChartsAPI: TenantContext
+        ChartsAPI->>DB: CompanyRepository.get_by_id (tenant-scoped)
+        ChartsAPI->>DB: FinancialStatementRepository.list_for_company<br/>(exclude_needs_review=true)
+        ChartsAPI->>ChartRegistry: definition.build(ctx) per chart
+        ChartRegistry-->>ChartsAPI: ChartConfig[] with source_refs
+        ChartsAPI-->>Browser: 200 ChartConfig[] (all audiences)
     end
 
-    Browser->>Browser: AudienceSwitcher filters ?audience=
-    Browser->>Browser: MetricCard click "Show source"
+    Browser->>Browser: Filter charts by ?audience= via AudienceSections
+    Browser->>MetricsAPI: GET /metrics?audience=equity&period=…
+    MetricsAPI->>MetricsOrch: cached Metric rows (confirmed statements only)
+    MetricsAPI-->>Browser: MetricsResponse
+
+    Browser->>Browser: MetricCard / GenericChartCard click "Show source"
     Note over Browser: SourceProvenanceHint displays<br/>source_excerpt + source_page from source_refs
 
     alt Viewer attempts admin-only action (e.g. POST accuracy-report)
-        API-->>Browser: 403 Forbidden (require_role)
+        ChartsAPI-->>Browser: 403 Forbidden (require_role)
     end
 ```
 
@@ -343,7 +353,7 @@ sequenceDiagram
         end
 
         AccuracySvc->>DB: Read ValidationResult (identity rules only)
-        AccuracySvc->>DB: INSERT accuracy_report<br/>(pipeline_version, scorecard)
+        AccuracySvc->>DB: INSERT accuracy_report<br/>(pipeline_version=EXTRACTION_PIPELINE_VERSION)
         API->>DB: audit_log accuracy_report_generated
         API-->>Browser: AccuracyReportRead
         Browser->>Browser: AccuracyPanel renders scorecard + mismatch excerpts
@@ -406,7 +416,7 @@ sequenceDiagram
     AuthAPI-->>RecipientUI: JWT + UserRead
 
     RecipientUI->>RecipientUI: navigate(/companies)
-    Note over RecipientUI: Viewer lands on /companies — report opens with default audience=management
+    Note over RecipientUI: Viewer lands on company list; report defaults to ?audience=management when opened
 ```
 
 ---
