@@ -427,30 +427,7 @@ The system follows a classic three-tier SaaS layout: a React SPA talks to a Fast
 persists tenant-scoped data in PostgreSQL and delegates slow work (PDF extraction, auto-fetch) to
 background tasks.
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  React + TypeScript SPA (Vite)                                          │
-│  Company list → Ingestion → Financial data review → Audience dashboards   │
-└───────────────────────────────┬─────────────────────────────────────────┘
-                                │ REST / JWT
-┌───────────────────────────────▼─────────────────────────────────────────┐
-│  FastAPI (async)                                                        │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────────────┐│
-│  │ Auth + 2FA  │  │ Tenant deps  │  │ Routes: companies, documents,  ││
-│  │ Invitations │  │ (org_id JWT) │  │ metrics, insights, export, …     ││
-│  └─────────────┘  └──────────────┘  └────────────────────────────────┘│
-│         │                  │                         │                  │
-│         ▼                  ▼                         ▼                  │
-│  Repositories (always scoped by organization_id)                        │
-│  Services: extraction · metrics · insight · storage · email · export  │
-└───────────────────────────────┬─────────────────────────────────────────┘
-                                │
-        ┌───────────────────────┼───────────────────────┐
-        ▼                       ▼                       ▼
-  PostgreSQL 15            Local filesystem         Anthropic API
-  (Alembic migrations)     (StorageService)         (structured extraction
-                                                    + narrative insights)
-```
+![alt text](<whiteboard_exported_image (4).png>)
 
 ### Multi-tenancy
 
