@@ -1,0 +1,46 @@
+sequenceDiagram
+    autonumber
+    actor Admin
+    actor Recipient
+    box Browser
+        participant AdminUI as TeamSettingsView
+        participant RecipientUI as AcceptInvitationView
+    end
+    box API
+        participant OrgsAPI as organizations_router
+        participant AuthAPI as auth_router
+    end
+    box Services
+        participant EmailSvc as send_email / render_invitation_email
+    end
+    box DB
+        participant DB as PostgreSQL
+    end
+
+    Admin->>AdminUI: Invite member (email, role=viewer)
+    AdminUI->>OrgsAPI: POST /organizations/invitations
+    OrgsAPI->>OrgsAPI: require_role(OWNER, ADMIN)
+
+    alt Inviter cannot assign role
+        OrgsAPI-->>AdminUI: 403 Forbidden
+    else Allowed
+        OrgsAPI->>DB: InvitationRepository.create (token, role, expires_at)
+        OrgsAPI->>DB: audit_log user_invited
+        OrgsAPI->>EmailSvc: render_invitation_email(token)
+        EmailSvc-->>Recipient: Email with /accept-invitation?token=…
+        OrgsAPI-->>AdminUI: 201 InvitationRead
+    end
+
+    Recipient->>RecipientUI: Open signed link
+    RecipientUI->>AuthAPI: GET /auth/invitations/{token}
+    AuthAPI-->>RecipientUI: InvitationPreview (role, org name)
+
+    Recipient->>RecipientUI: Register (full_name, password)
+    RecipientUI->>AuthAPI: POST /auth/accept-invitation
+    AuthAPI->>DB: UserRepository.create (role from invitation)
+    AuthAPI->>DB: InvitationRepository.mark_accepted
+    AuthAPI->>DB: audit_log invitation_accepted
+    AuthAPI-->>RecipientUI: JWT + UserRead
+
+    RecipientUI->>RecipientUI: navigate(/companies)
+    Note over RecipientUI: Viewer lands on /companies — report opens with default audience=management

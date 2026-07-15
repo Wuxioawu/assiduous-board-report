@@ -1,0 +1,44 @@
+sequenceDiagram
+    autonumber
+    actor Viewer
+    box Browser
+        participant Browser as ReportView + ProtectedRoute
+    end
+    box API
+        participant API as charts_router
+        participant Auth as get_tenant_context
+    end
+    box Services
+        participant ChartRegistry as CHART_REGISTRY
+    end
+    box DB
+        participant DB as PostgreSQL
+    end
+
+    Viewer->>Browser: Login
+    Browser->>API: POST /auth/login
+    API-->>Browser: JWT (org_id, role)
+    Viewer->>Browser: Open /companies/{id}/report?audience=equity
+    Browser->>Browser: ProtectedRoute (redirect /login if no token)
+
+    Browser->>API: GET /companies/{id}/charts?audience=equity
+    API->>Auth: decode JWT + live role from UserRepository
+
+    alt Missing or invalid token
+        Auth-->>Browser: 401 Unauthorized
+    else Authenticated (viewer role allowed)
+        Auth-->>API: TenantContext
+        API->>DB: CompanyRepository.get_by_id (tenant-scoped)
+        API->>DB: FinancialStatementRepository.list_for_company<br/>(exclude_needs_review=true)
+        API->>ChartRegistry: definition.build(ctx) per chart
+        ChartRegistry-->>API: ChartConfig[] with source_refs
+        API-->>Browser: 200 ChartConfig[]
+    end
+
+    Browser->>Browser: AudienceSwitcher filters ?audience=
+    Browser->>Browser: MetricCard click "Show source"
+    Note over Browser: SourceProvenanceHint displays<br/>source_excerpt + source_page from source_refs
+
+    alt Viewer attempts admin-only action (e.g. POST accuracy-report)
+        API-->>Browser: 403 Forbidden (require_role)
+    end

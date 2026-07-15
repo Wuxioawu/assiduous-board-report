@@ -33,6 +33,384 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full domain model and module 
 
 ---
 
+## Architecture
+
+Sequence and flow diagrams live in [`docs/architecture/`](./docs/architecture/) as standalone
+`.mermaid` files (GitHub renders the copies below natively).
+
+### Component map
+
+High-level map of major components and which flows connect them.
+
+```mermaid
+graph TD
+    subgraph Browser["Browser (React SPA)"]
+        IngestionView["CompanyIngestionView"]
+        ReportView["ReportView"]
+        DocDetail["DocumentDetailView"]
+        AcceptInvite["AcceptInvitationView"]
+        TeamSettings["TeamSettingsView"]
+    end
+
+    subgraph API["API (FastAPI routes)"]
+        DocumentsRouter["documents.py"]
+        CompaniesRouter["companies.py"]
+        ChartsRouter["charts.py"]
+        OrgsRouter["organizations.py"]
+        AuthRouter["auth.py"]
+    end
+
+    subgraph Services["Services"]
+        Pipeline["run_extraction (pipeline.py)"]
+        AutoFetch["run_periodic_auto_fetch (auto_fetch.py)"]
+        ValidationSvc["run_validation (validation/service.py)"]
+        MetricsOrch["compute_and_store_metrics (metrics/orchestrator.py)"]
+        ChartRegistry["CHART_REGISTRY (charts/registry.py)"]
+        AccuracySvc["build_accuracy_report (accuracy_report.py)"]
+        StorageSvc["StorageService"]
+        EmailSvc["send_email (email/mailer.py)"]
+    end
+
+    subgraph Scheduler["Scheduler"]
+        Lifespan["main.py lifespan asyncio task"]
+    end
+
+    LLM["LLM (Anthropic API)"]
+    Storage["Storage (local disk / Supabase)"]
+    DB[("PostgreSQL")]
+
+    Lifespan -->|"① auto-fetch loop"| AutoFetch
+    IngestionView -->|"① upload / poll"| DocumentsRouter
+    TeamSettings -->|"⑤ invite"| OrgsRouter
+    AcceptInvite -->|"⑤ accept"| AuthRouter
+    ReportView -->|"③ charts"| ChartsRouter
+    DocDetail -->|"④ accuracy"| CompaniesRouter
+
+    DocumentsRouter --> StorageSvc
+    DocumentsRouter --> Pipeline
+    CompaniesRouter --> AutoFetch
+    CompaniesRouter --> AccuracySvc
+    AutoFetch --> StorageSvc
+    AutoFetch -->|"reuse ①"| Pipeline
+
+    Pipeline --> StorageSvc
+    Pipeline --> LLM
+    Pipeline --> ValidationSvc
+    Pipeline --> MetricsOrch
+    Pipeline --> DB
+    ValidationSvc --> DB
+    MetricsOrch --> DB
+    ChartsRouter --> ChartRegistry
+    ChartRegistry --> DB
+    AccuracySvc --> DB
+    OrgsRouter --> EmailSvc
+    OrgsRouter --> DB
+    AuthRouter --> DB
+    StorageSvc --> Storage
+```
+
+### 1. Document upload & extraction
+
+Manual PDF upload → storage → async `run_extraction` → single LLM pass → validation → metric cache; frontend polls until a terminal document status.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    box Browser
+        participant Browser as CompanyIngestionView
+    end
+    box API
+        participant API as documents_router
+    end
+    box Services
+        participant StorageService
+        participant Pipeline as run_extraction
+        participant PdfParser as parse_pdf
+        participant LlmExtractor as extract_financial_data
+        participant ValidationService as run_validation
+        participant MetricsOrch as compute_and_store_metrics
+    end
+    participant LLM as Anthropic API
+    box Storage
+        participant Storage as Local / Supabase
+    end
+    box DB
+        participant DB as PostgreSQL
+    end
+
+    User->>Browser: Drop PDF
+    Browser->>API: POST /companies/{id}/documents
+    API->>StorageService: save(file)
+    StorageService->>Storage: write bytes
+    Storage-->>StorageService: storage_path
+    API->>DB: DocumentRepository.create (status=pending)
+    API->>DB: audit_log document_uploaded
+    API-->>Browser: 201 DocumentRead
+    API->>Pipeline: BackgroundTasks.add_task(run_extraction)
+
+    loop Poll every 3s while pending/processing
+        Browser->>API: GET /companies/{id}/documents
+        API-->>Browser: status pending → processing → extracted|failed
+    end
+
+    Pipeline->>DB: DocumentRepository.update_status(processing)
+    Pipeline->>StorageService: get_document_bytes(document)
+    StorageService->>Storage: read file / fetch URL
+    Storage-->>Pipeline: PDF bytes
+    Pipeline->>PdfParser: parse_pdf(content)
+    PdfParser-->>Pipeline: page text[]
+    Pipeline->>LlmExtractor: extract_financial_data(pages)
+    Note over LlmExtractor,LLM: Single LLM pass (no commercial-KPI pass 2)
+    LlmExtractor->>LLM: messages.parse (structured taxonomy)
+    LLM-->>LlmExtractor: ExtractedLineItem[]
+    Pipeline->>DB: FinancialStatementRepository.create_many<br/>(source_excerpt, confidence_score)
+    Pipeline->>DB: DocumentRepository.update_status(extracted)
+
+    loop Each extracted period
+        Pipeline->>ValidationService: run_validation(period)
+        ValidationService->>DB: ValidationResult rows
+        alt Identity check fails
+            ValidationService->>DB: statement.status = needs_review
+        else All checks pass
+            ValidationService->>DB: statement.status = confirmed
+        end
+        Pipeline->>MetricsOrch: compute_and_store_metrics(period_end)
+        MetricsOrch->>DB: Metric rows (confirmed statements only)
+    end
+
+    alt Extraction error
+        Pipeline->>DB: DocumentRepository.update_status(failed)
+    end
+
+    Note over Browser,DB: Accuracy report is manual (POST) or auto on re-extract only — not on fresh upload
+```
+
+### 2. Scheduled IR-site ingestion
+
+`run_periodic_auto_fetch` crawls enabled companies' investor-relations pages, dedupes, downloads new PDFs, then hands off to the ingestion pipeline.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    box Scheduler
+        participant Scheduler as run_periodic_auto_fetch
+    end
+    box Services
+        participant AutoFetch as run_fetch_check
+        participant Playwright as Playwright (Chromium)
+        participant StorageService
+        participant Ingestion as run_extraction (ingestion pipeline)
+    end
+    box DB
+        participant DB as PostgreSQL
+    end
+    box Storage
+        participant Storage as Local / Supabase
+    end
+
+    loop Every auto_fetch_interval_hours
+        Scheduler->>DB: CompanyRepository.list_auto_fetch_enabled()
+        DB-->>Scheduler: companies[]
+
+        loop Each enabled company
+            Scheduler->>AutoFetch: run_fetch_check(company)
+            AutoFetch->>DB: DocumentRepository.list_filenames_for_company()
+            AutoFetch->>DB: DocumentRepository.list_external_source_ids_for_company()
+
+            AutoFetch->>Playwright: goto(investor_relations_url)
+            Playwright-->>AutoFetch: IR page DOM
+            AutoFetch->>Playwright: _discover_cards (results + regulatory-news)
+
+            loop Each new financial candidate
+                alt Title already ingested
+                    AutoFetch-->>AutoFetch: skip (filename dedupe)
+                else external_source_id already known
+                    AutoFetch-->>AutoFetch: skip after navigation
+                else New filing
+                    AutoFetch->>Playwright: click card → download PDF
+                    Playwright-->>AutoFetch: PDF bytes
+                    AutoFetch->>StorageService: save_bytes()
+                    StorageService->>Storage: write bytes
+                    AutoFetch->>DB: DocumentRepository.create<br/>(source_type=auto_fetched, status=pending)
+                    AutoFetch->>DB: audit_log document_auto_fetched
+                    AutoFetch->>Ingestion: schedule_extraction(document_id)
+                    Note over Ingestion: See document-ingestion.mermaid<br/>(parse → LLM → validate → metrics)
+                end
+            end
+
+            AutoFetch->>DB: CompanyRepository.update_fetch_status()
+        end
+    end
+```
+
+### 3. Role-based report access
+
+Authenticated users fetch audience-filtered chart configs built only from confirmed statements; provenance excerpts surface on click.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Viewer
+    box Browser
+        participant Browser as ReportView + ProtectedRoute
+    end
+    box API
+        participant API as charts_router
+        participant Auth as get_tenant_context
+    end
+    box Services
+        participant ChartRegistry as CHART_REGISTRY
+    end
+    box DB
+        participant DB as PostgreSQL
+    end
+
+    Viewer->>Browser: Login
+    Browser->>API: POST /auth/login
+    API-->>Browser: JWT (org_id, role)
+    Viewer->>Browser: Open /companies/{id}/report?audience=equity
+    Browser->>Browser: ProtectedRoute (redirect /login if no token)
+
+    Browser->>API: GET /companies/{id}/charts?audience=equity
+    API->>Auth: decode JWT + live role from UserRepository
+
+    alt Missing or invalid token
+        Auth-->>Browser: 401 Unauthorized
+    else Authenticated (viewer role allowed)
+        Auth-->>API: TenantContext
+        API->>DB: CompanyRepository.get_by_id (tenant-scoped)
+        API->>DB: FinancialStatementRepository.list_for_company<br/>(exclude_needs_review=true)
+        API->>ChartRegistry: definition.build(ctx) per chart
+        ChartRegistry-->>API: ChartConfig[] with source_refs
+        API-->>Browser: 200 ChartConfig[]
+    end
+
+    Browser->>Browser: AudienceSwitcher filters ?audience=
+    Browser->>Browser: MetricCard click "Show source"
+    Note over Browser: SourceProvenanceHint displays<br/>source_excerpt + source_page from source_refs
+
+    alt Viewer attempts admin-only action (e.g. POST accuracy-report)
+        API-->>Browser: 403 Forbidden (require_role)
+    end
+```
+
+### 4. Accuracy verification
+
+Admin scores extracted values against optional ground-truth fixtures and recorded accounting-identity checks.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin
+    box Browser
+        participant Browser as DocumentDetailView
+    end
+    box API
+        participant API as companies_router
+        participant DocsAPI as documents_router
+    end
+    box Services
+        participant AccuracySvc as build_accuracy_report
+        participant Pipeline as run_extraction
+    end
+    box DB
+        participant DB as PostgreSQL
+    end
+
+    alt Manual run (admin panel)
+        Admin->>Browser: Run Accuracy Report
+        Browser->>API: POST /companies/{id}/accuracy-report
+    else Auto after re-extract
+        Admin->>DocsAPI: POST .../documents/{id}/re-extract
+        DocsAPI->>Pipeline: run_extraction(generate_accuracy_report=true)
+        Pipeline->>AccuracySvc: build_accuracy_report (best-effort)
+    end
+
+    API->>API: require_role(OWNER, ADMIN)
+
+    alt Analyst or viewer
+        API-->>Browser: 403 Forbidden
+    else Admin authorized
+        AccuracySvc->>DB: FinancialStatementRepository.list_for_document()
+        AccuracySvc->>AccuracySvc: find_ground_truth_for_document(filename)
+
+        alt Ground-truth fixture exists
+            AccuracySvc->>AccuracySvc: Compare fields (TOLERANCE)
+            AccuracySvc-->>AccuracySvc: exact_matches / mismatches + source_excerpt
+        else No fixture
+            AccuracySvc-->>AccuracySvc: identities-only scorecard<br/>(ground_truth_available=false)
+        end
+
+        AccuracySvc->>DB: Read ValidationResult (identity rules only)
+        AccuracySvc->>DB: INSERT accuracy_report<br/>(pipeline_version, scorecard)
+        API->>DB: audit_log accuracy_report_generated
+        API-->>Browser: AccuracyReportRead
+        Browser->>Browser: AccuracyPanel renders scorecard + mismatch excerpts
+    end
+
+    alt Document status not extracted
+        AccuracySvc-->>API: ExtractionNotCompleteError → 409
+    else Malformed fixture
+        AccuracySvc-->>API: MalformedGroundTruthFixtureError → 422
+    end
+```
+
+### 5. Viewer invitation
+
+Owner/admin creates a signed invitation link; recipient registers and receives a JWT scoped to the invited role.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin
+    actor Recipient
+    box Browser
+        participant AdminUI as TeamSettingsView
+        participant RecipientUI as AcceptInvitationView
+    end
+    box API
+        participant OrgsAPI as organizations_router
+        participant AuthAPI as auth_router
+    end
+    box Services
+        participant EmailSvc as send_email / render_invitation_email
+    end
+    box DB
+        participant DB as PostgreSQL
+    end
+
+    Admin->>AdminUI: Invite member (email, role=viewer)
+    AdminUI->>OrgsAPI: POST /organizations/invitations
+    OrgsAPI->>OrgsAPI: require_role(OWNER, ADMIN)
+
+    alt Inviter cannot assign role
+        OrgsAPI-->>AdminUI: 403 Forbidden
+    else Allowed
+        OrgsAPI->>DB: InvitationRepository.create (token, role, expires_at)
+        OrgsAPI->>DB: audit_log user_invited
+        OrgsAPI->>EmailSvc: render_invitation_email(token)
+        EmailSvc-->>Recipient: Email with /accept-invitation?token=…
+        OrgsAPI-->>AdminUI: 201 InvitationRead
+    end
+
+    Recipient->>RecipientUI: Open signed link
+    RecipientUI->>AuthAPI: GET /auth/invitations/{token}
+    AuthAPI-->>RecipientUI: InvitationPreview (role, org name)
+
+    Recipient->>RecipientUI: Register (full_name, password)
+    RecipientUI->>AuthAPI: POST /auth/accept-invitation
+    AuthAPI->>DB: UserRepository.create (role from invitation)
+    AuthAPI->>DB: InvitationRepository.mark_accepted
+    AuthAPI->>DB: audit_log invitation_accepted
+    AuthAPI-->>RecipientUI: JWT + UserRead
+
+    RecipientUI->>RecipientUI: navigate(/companies)
+    Note over RecipientUI: Viewer lands on /companies — report opens with default audience=management
+```
+
+---
+
 ## Architecture overview
 
 The system follows a classic three-tier SaaS layout: a React SPA talks to a FastAPI backend, which

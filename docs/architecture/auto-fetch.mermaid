@@ -1,0 +1,51 @@
+sequenceDiagram
+    autonumber
+    box Scheduler
+        participant Scheduler as run_periodic_auto_fetch
+    end
+    box Services
+        participant AutoFetch as run_fetch_check
+        participant Playwright as Playwright (Chromium)
+        participant StorageService
+        participant Ingestion as run_extraction (ingestion pipeline)
+    end
+    box DB
+        participant DB as PostgreSQL
+    end
+    box Storage
+        participant Storage as Local / Supabase
+    end
+
+    loop Every auto_fetch_interval_hours
+        Scheduler->>DB: CompanyRepository.list_auto_fetch_enabled()
+        DB-->>Scheduler: companies[]
+
+        loop Each enabled company
+            Scheduler->>AutoFetch: run_fetch_check(company)
+            AutoFetch->>DB: DocumentRepository.list_filenames_for_company()
+            AutoFetch->>DB: DocumentRepository.list_external_source_ids_for_company()
+
+            AutoFetch->>Playwright: goto(investor_relations_url)
+            Playwright-->>AutoFetch: IR page DOM
+            AutoFetch->>Playwright: _discover_cards (results + regulatory-news)
+
+            loop Each new financial candidate
+                alt Title already ingested
+                    AutoFetch-->>AutoFetch: skip (filename dedupe)
+                else external_source_id already known
+                    AutoFetch-->>AutoFetch: skip after navigation
+                else New filing
+                    AutoFetch->>Playwright: click card → download PDF
+                    Playwright-->>AutoFetch: PDF bytes
+                    AutoFetch->>StorageService: save_bytes()
+                    StorageService->>Storage: write bytes
+                    AutoFetch->>DB: DocumentRepository.create<br/>(source_type=auto_fetched, status=pending)
+                    AutoFetch->>DB: audit_log document_auto_fetched
+                    AutoFetch->>Ingestion: schedule_extraction(document_id)
+                    Note over Ingestion: See document-ingestion.mermaid<br/>(parse → LLM → validate → metrics)
+                end
+            end
+
+            AutoFetch->>DB: CompanyRepository.update_fetch_status()
+        end
+    end
