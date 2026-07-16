@@ -17,6 +17,17 @@ TOTP_ISSUER_NAME = "Assiduous Board Report"
 BACKUP_CODE_COUNT = 10
 PENDING_2FA_TOKEN_EXPIRE_MINUTES = 5
 
+# Fixed hash to compare against when the account being logged into doesn't
+# exist. bcrypt verification is deliberately slow (that's what makes it
+# resistant to offline brute-forcing), so skipping it for an unknown email
+# would make that request return noticeably faster than a known email with a
+# wrong password - an attacker can enumerate valid accounts from response
+# time alone even though the error message is identical. Always paying the
+# same bcrypt cost keeps the two cases indistinguishable. Computed once at
+# import time rather than hardcoded so it tracks whatever scheme/cost factor
+# _pwd_context is configured with.
+_DUMMY_PASSWORD_HASH = _pwd_context.hash("dummy-password-for-timing-normalization")
+
 
 def hash_password(plain_password: str) -> str:
     return _pwd_context.hash(plain_password)
@@ -24,6 +35,14 @@ def hash_password(plain_password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return _pwd_context.verify(plain_password, hashed_password)
+
+
+def verify_password_or_dummy(plain_password: str, hashed_password: str | None) -> bool:
+    """Same as verify_password, but safe to call with hashed_password=None (no
+    such account) - always runs a real bcrypt comparison, against a fixed
+    dummy hash in that case, so callers get a uniform latency profile
+    regardless of whether the account exists. See _DUMMY_PASSWORD_HASH."""
+    return _pwd_context.verify(plain_password, hashed_password or _DUMMY_PASSWORD_HASH)
 
 
 def create_access_token(*, user_id: UUID, org_id: UUID, role: str) -> str:

@@ -38,7 +38,7 @@ export function LoginView() {
         navigate("/companies");
       }
     } catch {
-      setError("Incorrect email or password, please try again");
+      setError("Incorrect email or password.");
     } finally {
       setIsSubmitting(false);
     }
@@ -197,7 +197,17 @@ export function LoginView() {
               Forgot password?
             </Link>
           </p>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && (
+            <div>
+              <p className="text-sm text-destructive">{error}</p>
+              <p className="mt-1 text-sm text-muted">
+                No account?{" "}
+                <Link to="/access-info" className="font-medium text-coral transition-colors hover:underline">
+                  Access is invitation-based — contact your administrator.
+                </Link>
+              </p>
+            </div>
+          )}
           <Button type="submit" disabled={isSubmitting} className="mt-2 w-full">
             {isSubmitting ? "Logging in…" : "Log In"}
           </Button>

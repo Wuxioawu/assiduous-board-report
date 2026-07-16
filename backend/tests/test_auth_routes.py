@@ -1,9 +1,11 @@
+import logging
 import uuid
 
 import pyotp
 import pytest
 from httpx import AsyncClient
 
+import app.api.v1.routes.auth as auth_routes
 from app.db.session import AsyncSessionLocal
 from app.models.enums import UserRole
 from app.repositories.user import UserRepository
@@ -72,6 +74,7 @@ class TestLogin:
         )
 
         assert response.status_code == 401
+        assert response.json()["detail"] == "Incorrect email or password."
 
     async def test_login_unknown_email_rejected(self, client: AsyncClient):
         response = await client.post(
@@ -79,6 +82,7 @@ class TestLogin:
         )
 
         assert response.status_code == 401
+        assert response.json()["detail"] == "Incorrect email or password."
 
     async def test_login_inactive_user_rejected(self, client: AsyncClient):
         async with AsyncSessionLocal() as db:
@@ -92,6 +96,50 @@ class TestLogin:
         )
 
         assert response.status_code == 401
+        assert response.json()["detail"] == "Incorrect email or password."
+
+    async def test_login_failure_reason_is_logged_but_not_returned_to_client(
+        self, client: AsyncClient, caplog: pytest.LogCaptureFixture
+    ):
+        """The three failure reasons must be indistinguishable to the caller
+        (same status/message - see the three tests above) but still
+        distinguishable in server logs, so we can debug login issues without
+        exposing account existence to an unauthenticated client."""
+        async with AsyncSessionLocal() as db:
+            org, user = await create_org_with_user(db, role=UserRole.OWNER, password="password123")
+            await db.commit()
+
+        with caplog.at_level(logging.INFO, logger="app.auth"):
+            await client.post(
+                "/api/v1/auth/login", json={"email": "nobody@example.com", "password": "password123"}
+            )
+            await client.post(
+                "/api/v1/auth/login", json={"email": user.email, "password": "wrong-password"}
+            )
+
+        messages = [record.message for record in caplog.records]
+        assert any("reason=unknown_email" in m for m in messages)
+        assert any("reason=bad_password" in m for m in messages)
+
+    async def test_login_unknown_email_still_runs_password_hash_check(self, client: AsyncClient, monkeypatch):
+        """Guards against re-introducing the timing side-channel: the
+        unknown-email branch must still call into the bcrypt verifier (even
+        though it compares against a dummy hash) rather than short-circuiting
+        before any hashing work happens."""
+        calls = []
+        real_verify = auth_routes.verify_password_or_dummy
+
+        def spy(plain_password, hashed_password):
+            calls.append(hashed_password)
+            return real_verify(plain_password, hashed_password)
+
+        monkeypatch.setattr(auth_routes, "verify_password_or_dummy", spy)
+
+        await client.post(
+            "/api/v1/auth/login", json={"email": "nobody@example.com", "password": "password123"}
+        )
+
+        assert calls == [None]
 
     async def test_login_with_2fa_enabled_returns_pending_token(self, client: AsyncClient):
         async with AsyncSessionLocal() as db:
