@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { createCompany, uploadCompanyLogo } from "@/api/companies";
-import { getErrorDetail } from "@/api/errors";
+import { getErrorDetail, getFieldErrors, type FieldErrors } from "@/api/errors";
 import { CompanyLogoStager } from "@/components/companies/CompanyLogoStager";
 import {
   CompanyProfileFields,
@@ -36,6 +36,7 @@ export function CreateCompanyView() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   if (user && !canManage) {
     return <Navigate to="/companies" replace />;
@@ -45,16 +46,25 @@ export function CreateCompanyView() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    setFieldErrors({});
     setIsSaving(true);
     try {
+      // Trim belt-and-braces on submit too, not just on blur - catches a
+      // pasted trailing space even if the user hits Enter without ever
+      // tabbing out of the field. The backend also strips whitespace on every
+      // string field before validation, so this is a UX nicety (the value
+      // that gets saved matches what's shown) rather than what actually fixes
+      // the 422.
+      const trimmedName = name.trim();
+      const trimmedIndustry = industry.trim();
       const company = await createCompany({
-        name,
-        industry: industry || null,
-        description: profile.description || null,
+        name: trimmedName,
+        industry: trimmedIndustry || null,
+        description: profile.description.trim() || null,
         founded_date: profile.foundedDate || null,
-        website_url: profile.websiteUrl || null,
-        headquarters_location: profile.headquartersLocation || null,
-        employee_count_range: profile.employeeCountRange || null,
+        website_url: profile.websiteUrl.trim() || null,
+        headquarters_location: profile.headquartersLocation.trim() || null,
+        employee_count_range: profile.employeeCountRange.trim() || null,
         reporting_frequency: cadence.reportingFrequency || null,
         fiscal_year_start_month: cadence.fiscalYearStartMonth,
       });
@@ -82,7 +92,12 @@ export function CreateCompanyView() {
 
       navigate(`/companies/${company.id}`);
     } catch (err) {
-      setError(getErrorDetail(err, "Failed to create company"));
+      const fields = getFieldErrors(err);
+      if (fields) {
+        setFieldErrors(fields);
+      } else {
+        setError(getErrorDetail(err, "Failed to create company"));
+      }
       setIsSaving(false);
     }
   }
@@ -111,9 +126,11 @@ export function CreateCompanyView() {
                 name="companyName"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                onBlur={() => setName((v) => v.trim())}
                 placeholder="e.g. Senus PLC"
                 autoFocus
                 required
+                error={fieldErrors.name}
               />
             </div>
             <div className="flex-1">
@@ -122,11 +139,18 @@ export function CreateCompanyView() {
                 name="companyIndustry"
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
+                onBlur={() => setIndustry((v) => v.trim())}
                 placeholder="e.g. Natural Capital / Climate Tech"
+                error={fieldErrors.industry}
               />
             </div>
           </div>
-          <CompanyProfileFields idPrefix="create" values={profile} onChange={setProfile} />
+          <CompanyProfileFields
+            idPrefix="create"
+            values={profile}
+            onChange={setProfile}
+            errors={fieldErrors}
+          />
           <CompanyReportingCadenceFields idPrefix="create" values={cadence} onChange={setCadence} />
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex gap-2">

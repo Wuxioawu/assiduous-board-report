@@ -1,13 +1,13 @@
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel
+from app.schemas.base import AppBaseModel
 
 ChartType = Literal["line", "grouped_bar", "stacked_bar", "waterfall", "card", "milestone"]
 ChartFormat = Literal["currency", "percent", "ratio", "count", "months"]
 
 
-class SourceRef(BaseModel):
+class SourceRef(AppBaseModel):
     """Traces a single chart point back to the exact FinancialStatement row(s)
     it was computed from, so the frontend can show provenance on click (e.g.
     clicking the Revenue card shows the "Turnover 354,813" excerpt it came
@@ -21,7 +21,7 @@ class SourceRef(BaseModel):
     source_page: int | None
 
 
-class ChartPoint(BaseModel):
+class ChartPoint(AppBaseModel):
     # x-axis category for "line"/"grouped_bar"/"stacked_bar" (a period label -
     # see frontend lib/periods.formatPeriodLabel, built from the fields below
     # rather than a pre-formatted string so the frontend's shared formatter
@@ -40,12 +40,12 @@ class ChartPoint(BaseModel):
     source_refs: list[SourceRef]
 
 
-class ChartSeries(BaseModel):
+class ChartSeries(AppBaseModel):
     label: str
     points: list[ChartPoint]
 
 
-class ChartConfig(BaseModel):
+class ChartConfig(AppBaseModel):
     id: str
     display_name: str
     chart_type: ChartType

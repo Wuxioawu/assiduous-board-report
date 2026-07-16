@@ -2,32 +2,33 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 from app.models.enums import InsightSeverity
+from app.schemas.base import AppBaseModel
 
 
-class KeyStatRead(BaseModel):
+class KeyStatRead(AppBaseModel):
     label: str
     value: str
     trend: Literal["up", "down", "neutral"]
     note: str | None = None
 
 
-class InsightSectionRead(BaseModel):
+class InsightSectionRead(AppBaseModel):
     label: str
     summary: str
     key_stats: list[KeyStatRead]
     detail: str
 
 
-class StructuredInsightContent(BaseModel):
+class StructuredInsightContent(AppBaseModel):
     headline: str
     sections: list[InsightSectionRead]
     watch_items: list[str]
 
 
-class InsightRead(BaseModel):
+class InsightRead(AppBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID

@@ -1,39 +1,40 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import EmailStr, Field
 
+from app.schemas.base import AppBaseModel
 from app.schemas.token import Token
 from app.schemas.user import UserRead
 
 
-class RegisterRequest(BaseModel):
+class RegisterRequest(AppBaseModel):
     organization_name: str = Field(min_length=1, max_length=255)
     full_name: str = Field(min_length=1, max_length=255)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
 
 
-class LoginRequest(BaseModel):
+class LoginRequest(AppBaseModel):
     email: EmailStr
     password: str
 
 
-class AuthResponse(BaseModel):
+class AuthResponse(AppBaseModel):
     token: Token
     user: UserRead
 
 
-class ChangePasswordRequest(BaseModel):
+class ChangePasswordRequest(AppBaseModel):
     current_password: str
     new_password: str = Field(min_length=8, max_length=128)
 
 
-class ForgotPasswordRequest(BaseModel):
+class ForgotPasswordRequest(AppBaseModel):
     email: EmailStr
 
 
-class ResetPasswordRequest(BaseModel):
+class ResetPasswordRequest(AppBaseModel):
     token: str
     new_password: str = Field(min_length=8, max_length=128)
 
 
-class MessageResponse(BaseModel):
+class MessageResponse(AppBaseModel):
     message: str

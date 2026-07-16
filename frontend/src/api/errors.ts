@@ -7,6 +7,33 @@ export function getErrorDetail(error: unknown, fallback: string): string {
   return fallback;
 }
 
+export type FieldErrors = Record<string, string>;
+
+/** Pulls per-field messages out of a FastAPI/Pydantic 422 response, e.g.
+ * {"detail": [{"loc": ["body", "website_url"], "msg": "...", "type": "..."}]}
+ * -> {website_url: "..."} - keyed by the field's own name (the last element
+ * of `loc`), so callers can look a message up by the same name the API
+ * schema uses and show it next to the offending input instead of only a
+ * generic "failed" message. Returns null for anything that isn't a
+ * field-shaped 422 body (network errors, 500s, a plain string detail),
+ * so callers can fall back to getErrorDetail for those. */
+export function getFieldErrors(error: unknown): FieldErrors | null {
+  if (!axios.isAxiosError(error) || error.response?.status !== 422) return null;
+  const detail: unknown = error.response.data?.detail;
+  if (!Array.isArray(detail)) return null;
+
+  const fieldErrors: FieldErrors = {};
+  for (const item of detail) {
+    const loc = item?.loc;
+    const msg = item?.msg;
+    const field = Array.isArray(loc) ? loc[loc.length - 1] : undefined;
+    if (typeof field === "string" && typeof msg === "string") {
+      fieldErrors[field] = msg;
+    }
+  }
+  return Object.keys(fieldErrors).length > 0 ? fieldErrors : null;
+}
+
 export type ErrorKind = "network" | "not-found" | "unauthorized" | "unknown";
 
 /** Buckets a caught error into a small set of user-meaningful categories, so

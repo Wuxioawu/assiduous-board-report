@@ -1,12 +1,13 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 from app.models.enums import DocumentStatus
+from app.schemas.base import AppBaseModel
 
 
-class DocumentRead(BaseModel):
+class DocumentRead(AppBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID

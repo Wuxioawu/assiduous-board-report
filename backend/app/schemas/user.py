@@ -1,11 +1,12 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import ConfigDict, EmailStr
 
 from app.models.enums import UserRole
+from app.schemas.base import AppBaseModel
 
 
-class UserRead(BaseModel):
+class UserRead(AppBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -19,5 +20,5 @@ class UserRead(BaseModel):
     avatar_url: str | None = None
 
 
-class AvatarResponse(BaseModel):
+class AvatarResponse(AppBaseModel):
     avatar_url: str | None

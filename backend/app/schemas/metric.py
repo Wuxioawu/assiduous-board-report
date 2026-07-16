@@ -1,12 +1,11 @@
 import uuid
 from datetime import date
 
-from pydantic import BaseModel
-
 from app.models.enums import PeriodType
+from app.schemas.base import AppBaseModel
 
 
-class MetricValue(BaseModel):
+class MetricValue(AppBaseModel):
     key: str
     label: str
     # Null when the metric couldn't be computed for this period (missing
@@ -42,7 +41,7 @@ class MetricValue(BaseModel):
     benchmark_period_label: str | None = None
 
 
-class MetricsResponse(BaseModel):
+class MetricsResponse(AppBaseModel):
     company_id: uuid.UUID
     currency: str
     period_start: date | None
@@ -62,7 +61,7 @@ class MetricsResponse(BaseModel):
     returns: list[MetricValue]
 
 
-class MetricHistoryPoint(BaseModel):
+class MetricHistoryPoint(AppBaseModel):
     period_start: date
     period_end: date
     # Derived server-side (see api/v1/routes/metrics.py) from whichever
@@ -82,6 +81,6 @@ class MetricHistoryPoint(BaseModel):
     value: float
 
 
-class MetricHistoryResponse(BaseModel):
+class MetricHistoryResponse(AppBaseModel):
     company_id: uuid.UUID
     series: dict[str, list[MetricHistoryPoint]]
