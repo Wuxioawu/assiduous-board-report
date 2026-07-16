@@ -66,8 +66,11 @@ describe("LoginView", () => {
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong" } });
     fireEvent.click(screen.getByRole("button", { name: "Log In" }));
 
-    expect(await screen.findByText("Incorrect email or password, please try again")).toBeInTheDocument();
+    expect(await screen.findByText("Incorrect email or password.")).toBeInTheDocument();
     expect(screen.queryByText("User is inactive")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Access is invitation-based — contact your administrator.", { exact: false }),
+    ).toBeInTheDocument();
   });
 
   it("shows the redirect message passed via router location state", () => {

@@ -1,12 +1,13 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import ConfigDict, EmailStr
 
 from app.models.enums import UserRole
+from app.schemas.base import AppBaseModel
 
 
-class MemberRead(BaseModel):
+class MemberRead(AppBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -18,5 +19,5 @@ class MemberRead(BaseModel):
     avatar_url: str | None = None
 
 
-class MemberRoleUpdate(BaseModel):
+class MemberRoleUpdate(AppBaseModel):
     role: UserRole

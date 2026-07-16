@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.deps import get_current_user
+from app.core.request_timing import current_request_id
 from app.core.security import (
     create_access_token,
     create_pending_2fa_token,
@@ -23,6 +24,7 @@ from app.core.security import (
     hash_backup_codes,
     hash_password,
     verify_password,
+    verify_password_or_dummy,
     verify_totp_code,
 )
 from app.db.session import get_db
@@ -64,11 +66,13 @@ from app.services.organization_deletion import purge_organization_company_data
 from app.services.storage import StorageService, get_storage_service
 
 logger = logging.getLogger(__name__)
+auth_logger = logging.getLogger("app.auth")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 RESET_TOKEN_EXPIRE_MINUTES = 30
 GENERIC_FORGOT_PASSWORD_MESSAGE = "If an account with that email exists, a reset link has been sent."
+LOGIN_FAILED_MESSAGE = "Incorrect email or password."
 INVALID_2FA_CODE_MESSAGE = "Invalid verification code."
 
 
@@ -136,8 +140,19 @@ async def login(
     payload: LoginRequest, db: AsyncSession = Depends(get_db)
 ) -> AuthResponse | PendingTwoFactorResponse:
     user = await UserRepository(db).get_by_email(payload.email)
-    if user is None or not user.is_active or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    # Always run a real bcrypt comparison, even when there's no user/hash to
+    # check against (verify_password_or_dummy falls back to a fixed dummy
+    # hash) - bcrypt is deliberately slow, so branching around it for an
+    # unknown email would make that response measurably faster than a known
+    # email with a wrong password, leaking account existence via timing even
+    # though the error below is identical either way.
+    password_ok = verify_password_or_dummy(payload.password, user.hashed_password if user else None)
+    if user is None or not user.is_active or not password_ok:
+        reason = "unknown_email" if user is None else "inactive" if not user.is_active else "bad_password"
+        auth_logger.info(
+            "login_failed reason=%s email=%r request_id=%s", reason, payload.email, current_request_id()
+        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=LOGIN_FAILED_MESSAGE)
 
     if user.totp_enabled:
         pending_token = create_pending_2fa_token(user_id=user.id)

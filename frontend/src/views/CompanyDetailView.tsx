@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { deleteCompany, getCompany, updateCompany } from "@/api/companies";
-import { getErrorDetail } from "@/api/errors";
+import { getErrorDetail, getFieldErrors, type FieldErrors } from "@/api/errors";
 import {
   CompanyProfileFields,
   EMPTY_COMPANY_PROFILE_FORM,
@@ -50,6 +50,7 @@ export function CompanyDetailView() {
   const [editCadence, setEditCadence] = useState<CompanyCadenceFormState>(EMPTY_COMPANY_CADENCE_FORM);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [editFieldErrors, setEditFieldErrors] = useState<FieldErrors>({});
 
   const {
     pendingItem: pendingDelete,
@@ -87,6 +88,7 @@ export function CompanyDetailView() {
       fiscalYearStartMonth: company.fiscal_year_start_month,
     });
     setEditError(null);
+    setEditFieldErrors({});
     setIsEditOpen(true);
   }
 
@@ -94,28 +96,35 @@ export function CompanyDetailView() {
     if (isSavingEdit) return;
     setIsEditOpen(false);
     setEditError(null);
+    setEditFieldErrors({});
   }
 
   async function confirmEdit() {
     if (!company) return;
     setIsSavingEdit(true);
     setEditError(null);
+    setEditFieldErrors({});
     try {
       const updated = await updateCompany(company.id, {
-        name: editName,
-        industry: editIndustry || null,
-        description: editProfile.description || null,
+        name: editName.trim(),
+        industry: editIndustry.trim() || null,
+        description: editProfile.description.trim() || null,
         founded_date: editProfile.foundedDate || null,
-        website_url: editProfile.websiteUrl || null,
-        headquarters_location: editProfile.headquartersLocation || null,
-        employee_count_range: editProfile.employeeCountRange || null,
+        website_url: editProfile.websiteUrl.trim() || null,
+        headquarters_location: editProfile.headquartersLocation.trim() || null,
+        employee_count_range: editProfile.employeeCountRange.trim() || null,
         reporting_frequency: editCadence.reportingFrequency || null,
         fiscal_year_start_month: editCadence.fiscalYearStartMonth,
       });
       setCompany(updated);
       setIsEditOpen(false);
     } catch (err) {
-      setEditError(getErrorDetail(err, "Failed to save changes, please try again"));
+      const fields = getFieldErrors(err);
+      if (fields) {
+        setEditFieldErrors(fields);
+      } else {
+        setEditError(getErrorDetail(err, "Failed to save changes, please try again"));
+      }
     } finally {
       setIsSavingEdit(false);
     }
@@ -291,16 +300,25 @@ export function CompanyDetailView() {
               name="editCompanyName"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
+              onBlur={() => setEditName((v) => v.trim())}
               required
+              error={editFieldErrors.name}
             />
             <Input
               label="Industry"
               name="editCompanyIndustry"
               value={editIndustry}
               onChange={(e) => setEditIndustry(e.target.value)}
+              onBlur={() => setEditIndustry((v) => v.trim())}
               placeholder="e.g. Natural Capital / Climate Tech"
+              error={editFieldErrors.industry}
             />
-            <CompanyProfileFields idPrefix="edit" values={editProfile} onChange={setEditProfile} />
+            <CompanyProfileFields
+              idPrefix="edit"
+              values={editProfile}
+              onChange={setEditProfile}
+              errors={editFieldErrors}
+            />
             <CompanyReportingCadenceFields idPrefix="edit" values={editCadence} onChange={setEditCadence} />
             {editError && <p className="text-sm text-destructive">{editError}</p>}
           </div>

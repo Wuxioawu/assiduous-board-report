@@ -1,22 +1,23 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.models.enums import Audience
+from app.schemas.base import AppBaseModel
 
 
-class CommentCreate(BaseModel):
+class CommentCreate(AppBaseModel):
     period: date
     audience: Audience
     content: str = Field(..., min_length=1)
 
 
-class CommentUpdate(BaseModel):
+class CommentUpdate(AppBaseModel):
     content: str = Field(..., min_length=1)
 
 
-class CommentRead(BaseModel):
+class CommentRead(AppBaseModel):
     id: uuid.UUID
     company_id: uuid.UUID
     period: date

@@ -4,6 +4,7 @@ import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { ToastProvider } from "@/toast/ToastContext";
 import { AcceptInvitationView } from "@/views/AcceptInvitationView";
+import { AccessInfoView } from "@/views/AccessInfoView";
 import { BenchmarkCreateView } from "@/views/BenchmarkCreateView";
 import { BenchmarkEditView } from "@/views/BenchmarkEditView";
 import { BenchmarkSettingsView } from "@/views/BenchmarkSettingsView";
@@ -32,6 +33,7 @@ export function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginView />} />
+          <Route path="/access-info" element={<AccessInfoView />} />
           <Route path="/register" element={<RegisterView />} />
           <Route path="/forgot-password" element={<ForgotPasswordView />} />
           <Route path="/reset-password" element={<ResetPasswordView />} />

@@ -162,6 +162,55 @@ describe("CreateCompanyView", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
+  it("trims a pasted trailing space from the website field before submitting", async () => {
+    mockAuth("owner");
+    vi.mocked(createCompany).mockResolvedValue(company());
+    renderView();
+
+    fireEvent.change(screen.getByLabelText("Company Name"), { target: { value: "Senus PLC" } });
+    fireEvent.change(screen.getByLabelText("Website"), {
+      target: { value: "https://www.senus.com " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(createCompany).toHaveBeenCalledWith(
+        expect.objectContaining({ website_url: "https://www.senus.com" }),
+      ),
+    );
+    expect(await screen.findByText("Company Detail Page")).toBeInTheDocument();
+  });
+
+  it("shows a 422 field error inline next to the Website field, not as a generic failure", async () => {
+    mockAuth("owner");
+    vi.mocked(createCompany).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 422,
+        data: {
+          detail: [
+            {
+              loc: ["body", "website_url"],
+              msg: "website_url must be a valid http(s) URL, e.g. https://example.com",
+              type: "value_error",
+            },
+          ],
+        },
+      },
+    });
+    renderView();
+
+    fireEvent.change(screen.getByLabelText("Company Name"), { target: { value: "Senus PLC" } });
+    fireEvent.change(screen.getByLabelText("Website"), { target: { value: "htp:/x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText("website_url must be a valid http(s) URL, e.g. https://example.com"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Failed to create company")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
   it("cancel navigates away without creating a company", async () => {
     mockAuth("owner");
     renderView();

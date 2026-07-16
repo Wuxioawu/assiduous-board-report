@@ -2,9 +2,10 @@ import re
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from app.models.enums import PeriodType, ReportingFrequency
+from app.schemas.base import AppBaseModel
 
 _URL_PATTERN = re.compile(r"^https?://[^\s/$.?#][^\s]*$", re.IGNORECASE)
 
@@ -17,7 +18,7 @@ _BLANK_TO_NONE_FIELDS = (
 )
 
 
-class CompanyProfileFields(BaseModel):
+class CompanyProfileFields(AppBaseModel):
     """Optional descriptive profile fields shared by create and update - kept in
     one place so the validation rules can't drift between the two."""
 
@@ -73,7 +74,7 @@ class CompanyUpdate(CompanyProfileFields):
     fiscal_year_start_month: int | None = Field(default=None, ge=1, le=12)
 
 
-class CompanyRead(BaseModel):
+class CompanyRead(AppBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -96,11 +97,11 @@ class CompanyRead(BaseModel):
     logo_url: str | None
 
 
-class CompanyLogoResponse(BaseModel):
+class CompanyLogoResponse(AppBaseModel):
     logo_url: str | None
 
 
-class CompanyPeriod(BaseModel):
+class CompanyPeriod(AppBaseModel):
     period_start: date
     period_end: date
     # Derived purely from the period's dates and the company's
@@ -115,7 +116,7 @@ class CompanyPeriod(BaseModel):
     fiscal_quarter: int | None = None
 
 
-class CompanyFetchResult(BaseModel):
+class CompanyFetchResult(AppBaseModel):
     found_new: int
     message: str
     last_fetch_checked_at: datetime | None

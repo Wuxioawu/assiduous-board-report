@@ -1,14 +1,16 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
+
+from app.schemas.base import AppBaseModel
 
 
-class AccuracyReportRequest(BaseModel):
+class AccuracyReportRequest(AppBaseModel):
     document_id: uuid.UUID
 
 
-class AccuracyMismatch(BaseModel):
+class AccuracyMismatch(AppBaseModel):
     period_label: str
     field: str
     expected: float
@@ -21,7 +23,7 @@ class AccuracyMismatch(BaseModel):
     statement_id: uuid.UUID | None
 
 
-class IdentityCheckResult(BaseModel):
+class IdentityCheckResult(AppBaseModel):
     rule_name: str
     passed: bool
     expected: float
@@ -29,7 +31,7 @@ class IdentityCheckResult(BaseModel):
     delta: float
 
 
-class AccuracyScorecard(BaseModel):
+class AccuracyScorecard(AppBaseModel):
     fields_compared: int
     exact_matches: int
     mismatches: list[AccuracyMismatch]
@@ -40,7 +42,7 @@ class AccuracyScorecard(BaseModel):
     ground_truth_fixture: str | None
 
 
-class AccuracyReportRead(BaseModel):
+class AccuracyReportRead(AppBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID

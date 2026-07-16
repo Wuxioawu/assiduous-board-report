@@ -1,12 +1,13 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from app.models.enums import PeriodType, StatementStatus
+from app.schemas.base import AppBaseModel
 
 
-class FinancialStatementRead(BaseModel):
+class FinancialStatementRead(AppBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -32,11 +33,11 @@ class FinancialStatementRead(BaseModel):
     updated_at: datetime
 
 
-class FinancialStatementUpdate(BaseModel):
+class FinancialStatementUpdate(AppBaseModel):
     value: float = Field(description="Manually corrected value; overrides the AI-extracted figure")
 
 
-class FinancialStatementCreate(BaseModel):
+class FinancialStatementCreate(AppBaseModel):
     """Manually adding a line item that was never extracted at all (as opposed to
     FinancialStatementUpdate, which corrects one that already exists)."""
 
@@ -52,7 +53,7 @@ class FinancialStatementCreate(BaseModel):
     )
 
 
-class FinancialStatementHistoryEntry(BaseModel):
+class FinancialStatementHistoryEntry(AppBaseModel):
     id: uuid.UUID
     previous_value: float
     new_value: float

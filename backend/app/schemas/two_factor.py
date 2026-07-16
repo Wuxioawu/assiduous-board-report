@@ -1,29 +1,31 @@
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.schemas.base import AppBaseModel
 
 
-class TwoFactorSetupResponse(BaseModel):
+class TwoFactorSetupResponse(AppBaseModel):
     qr_code_base64: str
     secret: str
 
 
-class VerifySetupRequest(BaseModel):
+class VerifySetupRequest(AppBaseModel):
     totp_code: str = Field(min_length=6, max_length=6)
 
 
-class BackupCodesResponse(BaseModel):
+class BackupCodesResponse(AppBaseModel):
     backup_codes: list[str]
 
 
-class DisableTwoFactorRequest(BaseModel):
+class DisableTwoFactorRequest(AppBaseModel):
     current_password: str
 
 
-class PendingTwoFactorResponse(BaseModel):
+class PendingTwoFactorResponse(AppBaseModel):
     requires_2fa: bool = True
     pending_token: str
 
 
-class LoginVerifyRequest(BaseModel):
+class LoginVerifyRequest(AppBaseModel):
     pending_token: str
     totp_code: str | None = None
     backup_code: str | None = None

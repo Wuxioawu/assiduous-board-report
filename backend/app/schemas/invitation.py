@@ -1,17 +1,18 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import ConfigDict, EmailStr, Field
 
 from app.models.enums import InvitationStatus, InvitationType, UserRole
+from app.schemas.base import AppBaseModel
 
 
-class InvitationCreate(BaseModel):
+class InvitationCreate(AppBaseModel):
     email: EmailStr
     role: UserRole
 
 
-class InvitationRead(BaseModel):
+class InvitationRead(AppBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -25,7 +26,7 @@ class InvitationRead(BaseModel):
     email_sent: bool = True
 
 
-class InviteEligibility(BaseModel):
+class InviteEligibility(AppBaseModel):
     """Read-only pre-check the frontend calls before actually creating an
     invitation, so it can show a transfer-confirmation prompt without side effects."""
 
@@ -33,7 +34,7 @@ class InviteEligibility(BaseModel):
     current_organization_name: str | None = None
 
 
-class InvitationPreview(BaseModel):
+class InvitationPreview(AppBaseModel):
     """Public, pre-auth summary of an invitation - shown on the accept-invitation
     page before the user picks a registration form or a login-to-confirm form."""
 
@@ -44,7 +45,7 @@ class InvitationPreview(BaseModel):
     current_organization_name: str | None = None
 
 
-class AcceptInvitationRequest(BaseModel):
+class AcceptInvitationRequest(AppBaseModel):
     token: str
     # Only required for a brand-new account (invitation_type=new_user) - a transfer
     # keeps the existing account's name, so the frontend doesn't collect it there.
@@ -55,7 +56,7 @@ class AcceptInvitationRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
-class AcceptInvitationBlockedResponse(BaseModel):
+class AcceptInvitationBlockedResponse(AppBaseModel):
     """Returned when a transfer invitation cannot complete immediately but offers
     an inline resolution path (e.g. sole-member org deletion)."""
 
@@ -65,7 +66,7 @@ class AcceptInvitationBlockedResponse(BaseModel):
     current_organization_name: str
 
 
-class AcceptInvitationWithDeletionRequest(BaseModel):
+class AcceptInvitationWithDeletionRequest(AppBaseModel):
     token: str
     password: str = Field(min_length=8, max_length=128)
     confirm_organization_name: str = Field(min_length=1, max_length=255)
