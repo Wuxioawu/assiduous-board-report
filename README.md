@@ -1,5 +1,7 @@
 # Assiduous Board Report Platform
 
+📺 [Watch the demo video](https://www.youtube.com/watch?v=-7wElUXPDuk)
+
 An AI-native, multi-tenant financial board reporting platform built for Assiduous. Organizations
 onboard companies, ingest financial filings (manual upload today, automated fetch for supported
 sources), and receive extracted metrics, interactive charts, and AI-generated narrative commentary
@@ -683,4 +685,4 @@ assiduous-board-report/
 | AI-assisted development workflow | [AI-assisted development workflow](#ai-assisted-development-workflow) above |
 | Assumptions and validation | [Assumptions](#assumptions) + [Validation approach](#validation-approach) above |
 | GitHub repository | *(repo URL)* |
-| Demo video | *(YouTube URL — to be added)* |
+| Demo video | [Watch on YouTube](https://www.youtube.com/watch?v=-7wElUXPDuk) |
