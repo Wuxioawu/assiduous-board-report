@@ -14,27 +14,6 @@ by design.
 
 See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full domain model and module layout.
 
----
-
-## What the platform does today
-
-| Area | Status |
-|---|---|
-| Multi-tenant auth (register, login, JWT, 2FA) | ✅ |
-| Team invitations + role-based access (owner / admin / analyst / viewer) | ✅ |
-| Company CRUD, document upload, async LLM extraction | ✅ |
-| Standardized financial taxonomy → `FinancialStatement` rows with source citations | ✅ |
-| Computed metrics (growth, profitability, cash, solvency, returns) | ✅ |
-| Four audience-specific dashboard views with live charts | ✅ |
-| AI narrative insights per audience / period | ✅ |
-| Human override of extracted figures + audit trail | ✅ |
-| Budget vs. actual, industry benchmarks, threaded comments on insights | ✅ |
-| PDF board-pack export | ✅ |
-| Automated IR-page fetch (Senus-style sources via Playwright) | ✅ MVP |
-| Billing, OAuth/SSO, S3 storage, Celery queue | 🔜 Phase 2 |
-
----
-
 ## Architecture
 
 Sequence and flow diagrams live in [`docs/architecture/`](./docs/architecture/) as standalone
@@ -674,15 +653,5 @@ assiduous-board-report/
 └── ROADMAP.md                 # Known limitations and Phase 2 priorities
 ```
 
----
 
-## Assessment deliverables
 
-| Deliverable | Location |
-|---|---|
-| Architecture overview | This README + [`ARCHITECTURE.md`](./ARCHITECTURE.md) |
-| Technologies used | [Technology stack](#technology-stack) above |
-| AI-assisted development workflow | [AI-assisted development workflow](#ai-assisted-development-workflow) above |
-| Assumptions and validation | [Assumptions](#assumptions) + [Validation approach](#validation-approach) above |
-| GitHub repository | *(repo URL)* |
-| Demo video | [Watch on YouTube](https://www.youtube.com/watch?v=-7wElUXPDuk) |
